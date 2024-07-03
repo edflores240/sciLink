@@ -138,8 +138,8 @@
                   <%}%>
                   <form action="/timesheet/rejectTs?page=pending" method="post">
                     <input type="hidden" name="ts_id" value="<%= timesheet.id %>">
-                    <button class="delete-icon" type="submit" style="border: none; background-color: transparent;">
-                      <i class="fa fa-solid fa-trash" aria-hidden="true"></i>
+                    <button class="delete-icon" type="submit" style="border: none; background-color: transparent; color: red;">
+                      <i class="fa fa-solid fa-ban" aria-hidden="true"></i>
                     </button>
                   </form>
                   

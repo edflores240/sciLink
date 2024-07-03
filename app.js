@@ -1,6 +1,3 @@
-//--------------------------------------
-//----  Program setup and dependancies
-//--------------------------------------
 //#region imports
 import express from "express";
 import session from "express-session";
@@ -19,7 +16,7 @@ import { error } from "console";
 import path from "path";
 
 // ROUTES IMPORts
-
+// ROUTES IMPORTS
 import createLocationRoutes from "./routes/locationRoutes.js";
 import createActivityRoutes from "./routes/activityRoutes.js";
 import createTimesheetRoutes from "./routes/timeSheetsRoutes.js";
@@ -31,7 +28,8 @@ import createNotificaitonRoute from "./routes/notificationRoutes.js";
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 const app = express();
-// Serve static filess
+
+// Serve static files
 app.use(express.static(__dirname + "/public"));
 
 // Middleware to set the correct MIME type for CSS files
@@ -43,7 +41,6 @@ app.use((req, res, next) => {
 });
 
 const API_URL = "http://localhost:4000";
-// let baseURL = "";
 const saltRounds = 10;
 env.config();
 if (process.env.SESSION_SECRET) {
@@ -66,8 +63,10 @@ app.use(
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true,
+    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 7 days in milliseconds
   })
 );
+
 app.use(flash());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
@@ -82,71 +81,6 @@ app.use((req, res, next) => {
   res.locals.config = config;
   next();
 });
-
-//#region logging not used any more
-// // Middleware to log connections
-// app.use((req, res, next) => {
-//     // Define an inner async function to use await
-//     const handleRequest = async () => {
-//         const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-//         const userAgent = req.headers['user-agent'];
-//         const [browser, os] = parseUserAgent(userAgent);
-//         const now = new Date().toISOString();
-//         //    const sessionId = await bcrypt.hash(req.sessionID, 10);
-//         const hashedSessionId = await bcrypt.hash(req.sessionID, 10);            //more secure against session hijacking attacks.
-//         const sessionId = hashedSessionId.substring(0, 8); // Extract a portion of the hash
-//         const sanitizedBody = { ...req.body };          // Clone the req.body object to avoid modifying the original request
-//         if (sanitizedBody.hasOwnProperty('password')) {
-//             sanitizedBody.password = '***';         // dont reveal the unhashed password in the logging table
-//         }
-//         const reqJSON = JSON.stringify({
-//         endpoint: req.originalUrl,
-//         params: req.params,
-//         query: req.query,
-//         body: sanitizedBody
-//         });
-
-//         // Check if the session ID is valid (recognized by passport)
-//         if (!req.isAuthenticated()) {
-//             console.error(`Attempted session hijacking attack detected: Session ID ${sessionId}`);
-//         }
-
-//         db.query(      // Insert data into the debug table
-//         'INSERT INTO debug (timestamp, ip_address, session_id, browserOS, agent, request) VALUES ($1, $2, $3, $4, $5, $6)',
-//         [now, ip, sessionId, browser + " on " + os, userAgent, reqJSON],
-//         (err, result) => {
-//             if (err) {
-//             console.error('Error inserting data into debug table:', err);
-//             } else {
-//             //console.log('Data inserted into debug table:', result.rows);
-//             }
-//         }
-//         );
-
-//     }
-
-//     // Call the async function immediately
-//     handleRequest().then(() => {
-//         next();
-//     }).catch(next);
-//   });
-
-//   // Function to parse user agent string and extract browser and OS information
-//   function parseUserAgent(userAgent) {
-//     // Use a library like 'useragent' for more accurate parsing
-//     // This is a basic example
-//     const browserMatch = userAgent.match(/(Firefox|Chrome|Safari|Opera|MSIE)\/([\d.]+)/);
-//     const osMatch = userAgent.match(/\((Windows NT [\d.]+|Macintosh|Linux|iPhone|iPad|Android)\)/);
-//     const browser = browserMatch ? browserMatch[1] : 'Unknown';
-//     let os = osMatch ? osMatch[1] : 'Unknown';
-//     if (os.startsWith('Windows')) {
-//         os = 'Windows NT 10.0'; // or extract the actual version if available
-//     }
-//     return [browser, os];
-// }
-//#endregion
-
-//#endregion
 
 // Middleware to check if user is authenticated
 const isAuthenticated = (req, res, next) => {
@@ -166,8 +100,7 @@ const isAdmin = (req, res, next) => {
     return next();
   } else {
     console.log("iad3   user is admin");
-    // res.status(403).json({ messages: ["Permission denied"] });
-    console.log("iad3 STATUS: PERMISSION DENIED")
+    console.log("iad3 STATUS: PERMISSION DENIED");
     return res.redirect("/login");
   }
 };
@@ -1208,7 +1141,7 @@ app.post(
 );
 
 app.post("/editUser", isAdmin, async (req, res) => {
-  console.log("p1     Request Body:", req.body);
+  console.log("p1 Request Body:", req.body);
 
   try {
     const { userID, username, email, password, role } = req.body;
@@ -1221,31 +1154,34 @@ app.post("/editUser", isAdmin, async (req, res) => {
       verificationToken: "updated by " + req.user.username,
       verified_email: true,
     };
-    console.log("p2   ", userData);
+    console.log("p2 ", userData);
 
-    if (password === "") {
-      const { password, ...rest } = userData; //remove password from being sent
+    // If password is provided, hash it
+    if (password !== "") {
+      userData.password = await bcrypt.hash(password, saltRounds);
+      console.log("p3 Hashed password:", userData.password);
+    } else {
+      const { password, ...rest } = userData; // Remove password from being sent
       userData = rest;
     }
-    console.log(`p3      ${API_URL}/users/${userID}`, userData);
 
-    // const userID = await registerUser(userData);   // Register the user using the registerUser function
+    console.log(`p4 ${API_URL}/users/${userID}`, userData);
+
+    // Update the user using the PUT request
     const result = await axios.put(`${API_URL}/users/${userID}`, userData);
-    console.log("p4");
-
-    console.log("p9 Updated user:", result.data);
+    console.log("p5 Updated user:", result.data);
 
     req.flash(
       "messages",
       "User updated. Skipped email verification. Ensure that the correct email was used."
     );
-    res.status(200).send("User information updated successfully");
+
+    res.redirect("/users");
   } catch (error) {
     console.error("Error updating user information:", error);
     res.status(500).send("Internal server error");
   }
 });
-
 //#endregion
 
 //-------------------------------------------------
@@ -1315,8 +1251,7 @@ app.post("/login", function (req, res, next) {
         req.session.userInfo = isManager.data[0];
         
         if (req.session.userInfo === undefined) {
-          await axios.put(`${API_URL}/users/addPersonelleInfo/${req.user.id}`)
-
+          await axios.put(`${API_URL}/users/addPersonelleInfo/${req.user.id}`);
         }
 
         if (
@@ -1336,13 +1271,24 @@ app.post("/login", function (req, res, next) {
   })(req, res, next);
 });
 
-
 app.get("/logout", (req, res) => {
   console.log("lo1    user is logging out");
-  req.logout(() => {
-    res.redirect("/");
+  
+  req.logout((err) => {
+    if (err) {
+      console.error("Logout error:", err);
+      return res.redirect("/login"); // Or handle the error appropriately
+    }
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Session destruction error:", err);
+      }
+      res.clearCookie('connect.sid'); // 'connect.sid' is the default cookie name for express-session
+      res.redirect("/login");
+    });
   });
 });
+
 
 app.get("/register", (req, res) => {
   console.log("r1");
@@ -1360,6 +1306,7 @@ const registerUser = async (userData, orgID) => {
     console.log("ru1 ", userData);
     const hashedPassword = await bcrypt.hash(password, saltRounds);
     console.log("ru2 ", hashedPassword);
+
 
     // Generate a verification token
     if (!verificationToken) {
@@ -1380,7 +1327,7 @@ const registerUser = async (userData, orgID) => {
       username = email;
     }
     // if (!role) {
-    //     role = "user"
+     role = "user"
     // }
     if (!email || !password) {
       throw new Error("Email and password are required.");

@@ -1,210 +1,169 @@
 import { Router } from "express";
 import axios from "axios";
 
+// Function to create timesheet routes
 const createTimesheetRoutes = (isAuthenticated) => {
-  console.log("tsr1     ");
-  const router = Router();
-  const API_URL = process.env.API_URL;
+  const router = Router(); // Initialize the router
+  const API_URL = process.env.API_URL; // Get the API URL from environment variables
+  const NODE_ENV = process.env.NODE_ENV  // Set NODE_ENV to 'development' if not set
 
+  // POST route to handle flexi day off
   router.post("/flexiDayOff", isAuthenticated, async (req, res) => {
     const userID = req.user.id;
-    const dayOffOption = req.body.dayOffOption;
-    const workDate = req.body.workDate;
-    const flexiInput = req.body.flexiInput;
-    const tilInput = req.body.tilInput;
+    const { dayOffOption, workDate, flexiInput, tilInput } = req.body;
 
     try {
+      // Make a POST request to the API to handle the flexi day off
       await axios.post(`${API_URL}/flexiDayOff/${userID}`, {
         dayOffOption,
         workDate,
         flexiInput,
         tilInput,
       });
-      res.redirect("/time");
+      res.redirect("/time"); // Redirect to the timesheet page on success
     } catch (error) {
-      res.status(500).json({ error: error });
+      // Log error details only in development mode
+      if (NODE_ENV === 'development') {
+        console.error(error);
+      }
+      // Send a generic error message to the client
+      res.status(500).json({ error: "An error occurred while processing your request." });
     }
   });
 
+  // GET route to fetch and display an individual timesheet by ID
   router.get("/:id", isAuthenticated, async (req, res) => {
     const ts_id = req.params.id;
-    
-    const timesheetResult = await axios.get(`${API_URL}/timesheets/getTimesheetById/${ts_id}`)
-
-    if(timesheetResult.data.length == 0 ) { 
-      return res.redirect(req.get('referer') || '/time'); // If this is true then it should go back to the page before coming to this page
-    } else { 
-      
-      console.log("Timesheet data", timesheetResult.data)
-
-      if(timesheetResult.data[0].manager_id != req.user.id && timesheetResult.data[0].user_id != req.user.id) {
-        return res.redirect(req.get('referer') || '/time');  // If this is true then it should go back to the page before coming to this page
-      }
-    }
-
-    
-
 
     try {
-      const userInfo = req.session.userInfo;
-      const data = timesheetResult
-      // console.log("GWPO KO");
-      // console.log(data.data.timesheets);
+      // Make a GET request to the API to fetch the timesheet by ID
+      const timesheetResult = await axios.get(`${API_URL}/timesheets/getTimesheetById/${ts_id}`);
 
-      // if (data.data.timesheets == "") {
-      //   res.redirect("/time");
-      // }
+      // Redirect if no data is found or if the user is not authorized to view the timesheet
+      if (timesheetResult.data.length === 0 || 
+          (timesheetResult.data[0].manager_id !== req.user.id && timesheetResult.data[0].user_id !== req.user.id)) {
+        return res.redirect(req.get('referer') || '/time');
+      }
 
-      console.log("CT1", data.data[0])
+      const userInfo = req.session.userInfo; // Get user information from the session
+      const data = timesheetResult.data[0]; // Extract the timesheet data
 
+      // Render the individual timesheet page
       res.render("timesheet/individualTimeSheet.ejs", {
         title: "Timesheet",
         user: req.user,
-        userInfo: userInfo,
-        data: data.data[0],
+        userInfo,
+        data,
         messages: req.flash("messages"),
       });
     } catch (error) {
-      res.redirect("/time");
+      // Log error details only in development mode
+      if (NODE_ENV === 'development') {
+        console.error(error);
+      }
+      res.redirect("/time"); // Redirect to the timesheet page on error
     }
   });
 
+  // GET route to edit a timesheet by ID
   router.get("/edit/:id", isAuthenticated, async (req, res) => {
     const ts_id = req.params.id;
-    const work_date = req.query.work_date;
+    const { work_date: workDate } = req.query;
 
+    try {
+      // Check if the user has a manager
+      const myManager = await axios.get(`${API_URL}/users/checkMyManger/${req.user.id}`);
+      if (myManager.data.length === 0) {
+        return res.redirect("/profile?status=noManager");
+      }
 
-    
-    const myManager = await axios.get(`${API_URL}/users/checkMyManger/${req.user.id}`)
+      // Fetch the pending timesheet data by ID and work date
+      const tsData = await axios.get(`${API_URL}/timesheets/getPendingTimesheetById/${ts_id}?work_date=${workDate}`);
+      if (tsData.data.length === 0) {
+        return res.redirect("/time");
+      }
 
-    if(myManager.data.length == 0) { 
-     return res.redirect("/profile?status=noManager") // Use return to stop further execution
-    }
-
-
-
-    const tsData = await axios.get(
-      `${API_URL}/timesheets/getPendingTimesheetById/${ts_id}?work_date=${work_date}`
-    );
-
-
-
-    console.log("tsDaat", tsData.data);
-
-    if (tsData.data.length == 0) {
-      res.redirect("/time");
-      res.end();
-    } else {
-      const userId = req.user.id; // Use req.user.id instead of req.query.userId
-      const date = req.query.work_date;
-
-      console.log("The DATE ", date);
-
+      const userId = req.user.id;
       const locationResponse = await axios.get(`${API_URL}/location`);
-      const userScheduleResponse = await axios.get(
-        `${API_URL}/userSchedule/${req.user.id}`
-      );
+      const userScheduleResponse = await axios.get(`${API_URL}/userSchedule/${userId}`);
 
-      console.log("workSchedule", userScheduleResponse.data);
       let userSchedules = [];
-
-      if (!userScheduleResponse.data.length == 0) {
-        const scheduleDays = userScheduleResponse.data[0].schedule_day;
-        const paidHours = userScheduleResponse.data[0].paid_hours;
-        const startDate = new Date(userScheduleResponse.data[0].start_date);
-        const endDate = new Date(userScheduleResponse.data[0].end_date);
-
-        userSchedules = getPayPeriods(
-          startDate,
-          endDate,
-          scheduleDays,
-          paidHours
-        );
-        console.log("user schedules: ", userSchedules);
+      // Process user schedule if available
+      if (userScheduleResponse.data.length !== 0) {
+        const { schedule_day: scheduleDays, paid_hours: paidHours, start_date: startDate, end_date: endDate } = userScheduleResponse.data[0];
+        userSchedules = getPayPeriods(new Date(startDate), new Date(endDate), scheduleDays, paidHours);
       }
 
-      function getDayOfWeekName(dayOfWeek) {
-        const days = [
-          "Sunday",
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-        ];
-        return days[dayOfWeek];
+      const location = locationResponse.data; // Get location data
+      const recentLocation = await axios.get(`${API_URL}/location/getRecentLocation/${userId}`);
+      const selectedDate = workDate;
+
+      // Redirect if no schedules are found
+      if (userSchedules.length === 0) {
+        return res.redirect("/time?m=noSchedule");
       }
 
-      function getPayPeriods(startDate, endDate, scheduleDays, paidHours) {
-        console.log("rpr1     ");
-        const allDateSchedules = [];
-
-        let currentDate = new Date(startDate);
-        // Populate allDateSchedules with all scheduled days within the date range
-        let i = 0;
-        let paidHour = 0;
-        while (currentDate <= endDate) {
-          const dayOfWeek = currentDate.getDay();
-          if (scheduleDays.includes(getDayOfWeekName(dayOfWeek))) {
-            if (i <= paidHours.length - 1) {
-              paidHour = paidHours[i];
-
-              if (i == paidHours.length - 1) {
-                i = 0;
-              } else {
-                i += 1;
-              }
-            }
-
-            if (date == new Date(currentDate).toISOString().split("T")[0]) {
-              allDateSchedules.push({
-                date: new Date(currentDate).toISOString().split("T")[0],
-                paidHour: paidHour,
-                start_date: userScheduleResponse.data[0].start_date,
-              end_date: userScheduleResponse.data[0].end_date,
-              user_id: userScheduleResponse.data[0].user_id,
-              schedule_id: userScheduleResponse.data[0].schedule_id,
-              disable_til: userScheduleResponse.data[0].disable_til,
-              disable_flexi: userScheduleResponse.data[0].disable_flexi,
-              disable_rdo: userScheduleResponse.data[0].disable_rdo
-              });
-            }
-
-            console.log("PaidHour", paidHour);
-          }
-          currentDate.setDate(currentDate.getDate() + 1);
-        }
-
-        return allDateSchedules;
+      // Render the edit timesheet page
+      res.render("timesheet/editTimesheet.ejs", {
+        tsData: tsData.data[0],
+        forDate: workDate,
+        user: req.user,
+        userWorkSchedule: userSchedules,
+        selectedDate,
+        location,
+        recentLocation: recentLocation.data,
+        title: "Enter Timesheet",
+        messages: req.flash("messages"),
+      });
+    } catch (error) {
+      // Log error details only in development mode
+      if (NODE_ENV === 'development') {
+        console.error(error);
       }
-
-      const location = locationResponse.data; // Extract the data from the Axios response
-
-      const selectedDate = date;
-
-      if (false) {
-
-      } else {
-        if (userSchedules.length == 0) {
-          // console.log(true);
-          res.redirect("/time?m=noSchedule");
-        } else {
-          console.log("selectedDate", selectedDate);
-          res.render("timesheet/editTimesheet.ejs", {
-            tsData: tsData.data[0],
-            forDate: date,
-            user: req.user,
-            userWorkSchedule: userSchedules,
-            selectedDate: selectedDate,
-            location: location, // Pass the extracted location data
-            title: "Enter Timesheet",
-            messages: req.flash("messages"),
-          });
-        }
-      }
+      res.redirect("/time"); // Redirect to the timesheet page on error
     }
   });
+
+  // Helper function to get the name of the day of the week
+  function getDayOfWeekName(dayOfWeek) {
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    return days[dayOfWeek];
+  }
+
+  // Helper function to get pay periods
+  function getPayPeriods(startDate, endDate, scheduleDays, paidHours) {
+    const allDateSchedules = [];
+    let currentDate = new Date(startDate);
+    let i = 0;
+    let paidHour = 0;
+
+    // Iterate through the dates to generate schedules
+    while (currentDate <= endDate) {
+      const dayOfWeek = currentDate.getDay();
+      if (scheduleDays.includes(getDayOfWeekName(dayOfWeek))) {
+        if (i <= paidHours.length - 1) {
+          paidHour = paidHours[i];
+          i = i === paidHours.length - 1 ? 0 : i + 1;
+        }
+
+        allDateSchedules.push({
+          date: currentDate.toISOString().split("T")[0],
+          paidHour,
+          start_date: startDate,
+          end_date: endDate,
+          user_id: userScheduleResponse.data[0].user_id,
+          schedule_id: userScheduleResponse.data[0].schedule_id,
+          disable_til: userScheduleResponse.data[0].disable_til,
+          disable_flexi: userScheduleResponse.data[0].disable_flexi,
+          disable_rdo: userScheduleResponse.data[0].disable_rdo,
+        });
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return allDateSchedules;
+  }
+
 
   // router.post("/edit/:id", isAuthenticated, async (req, res) => {
   //   const ts_id = req.params.id;

@@ -111,7 +111,8 @@
                         </button>
                     </div>
                     <div class="modal-body">
-                        <form action="/updateUser" method="POST">
+                        <form action="/editUser" method="POST">
+                            <input type="hidden" name="userID" value="<%=user.id%>">
                             <div class="form-group">
                                 <label for="username">Username:</label>
                                 <input class="form-control mb-2" type="text" id="username" name="username" value="<%=user.username%>" required>
@@ -124,7 +125,7 @@
                                 <label for="password">Password:</label>
                                 <p style="font-size: .8rem; color: gray;">Leave blank if you don't want to edit the password
                                 </p>
-                                <input class="form-control mb-2" type="password" id="password" name="password" required>
+                                <input class="form-control mb-2" type="password" id="password" name="password" >
                             </div>
                             <div class="form-group mb-4">
                                 <label for="role">Role:</label>
@@ -133,13 +134,14 @@
                                     <option value="user" value="admin" <%= user.role == 'user' ? 'selected' : '' %>>User</option>
                                 </select>
                             </div>
-                            <button class="btn btndark" type="submit">Add User</button>
+                            <!-- <button class="btn btndark" type="submit">Add User</button> -->
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="submit" class="btn btn-primary">Save changes</button>
+                            </div>
                         </form>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-primary">Save changes</button>
-                    </div>
+                   
                 </div>
             </div>
         </div>
