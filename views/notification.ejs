@@ -99,7 +99,9 @@ function calculateDaysAgo(created_at) {
                   <a href="timesheets/${notification.timesheet_id}" class="btn btn-outline-success btn-sm">View Timesheet</a>
                 </div>
                 <div class="btn">
-                  <button class="btn btn-outline-danger btn-sm" onclick="deleteNotification(${notification.notification_id})">Delete</button>
+                  <button class="btn btn-outline-danger btn-sm" onclick="deleteNotification(${notification.notification_id})">
+                    <i class="fas fa-archive"></i>
+                  </button>
                 </div>
               </span>
             </div>
@@ -117,7 +119,7 @@ function calculateDaysAgo(created_at) {
               </div>
               <span class="ml-auto mb-auto">
                 <div class="btn">
-                  <button class="btn btn-outline-danger btn-sm" onclick="deleteNotification(${notification.notification_id})">Delete</button>
+                  <button class="btn btn-outline-danger btn-sm" onclick="deleteNotification(${notification.notification_id})">  <i class="fas fa-archive"></i></button>
                 </div>
               </span>
             </div>
@@ -135,16 +137,7 @@ function calculateDaysAgo(created_at) {
   }
 
   async function deleteNotification(notificationId) {
-   await fetch(`/notification/delete/${notificationId}`, {
-      method: 'get'
-    });
-
-    // if (response.ok) {
-    //   console.log('Notification deleted successfully');
-    //   fetchNotifications(); // Refresh notifications after deletion
-    // } else {
-    //   console.error('Failed to delete notification');
-    // }
+    window.location.href = `/notification/delete/${notificationId}`;
   }
 
   setInterval(fetchNotifications, 5000); // Poll every 5 seconds

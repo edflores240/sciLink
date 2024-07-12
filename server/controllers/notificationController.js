@@ -36,7 +36,7 @@ const getRecentNotifications = async (req, res) => {
         SELECT n.title, n.message, r.seen
         FROM notification n
         JOIN recipient r ON n.notification_id = r.notification_id
-        WHERE r.user_id = $1
+        WHERE r.user_id = $1 AND archive = FALSE
         AND n.created_at > NOW() - INTERVAL '24 hours'
         ORDER BY n.created_at DESC;
     `;
@@ -66,7 +66,7 @@ FROM
 WHERE
 	(n.receiver_id = $1 OR
 	n.sender_id = $1) AND (
-	"t".status = 'reject' OR n.notification_type = 'Manager Request')
+	"t".status = 'reject' OR n.notification_type = 'Manager Request') AND archive = FALSE
 ORDER BY
 	n.created_at DESC
 
@@ -136,9 +136,13 @@ const deleteNotification = async (req, res) => {
   const notificationId = req.params.notificationID;
 
   // First, delete the recipient entries associated with the notification
+  // const deleteRecipientQuery = `
+  //       DELETE FROM notification
+  //       WHERE notification_id = $1;
+  //   `;
+
   const deleteRecipientQuery = `
-        DELETE FROM notification
-        WHERE notification_id = $1;
+        UPDATE notification SET archive = TRUE WHERE notification_id = $1;
     `;
 
   try {

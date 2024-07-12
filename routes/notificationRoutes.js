@@ -57,6 +57,8 @@ const createNotificationRoute = (isAuthenticated) => {
       await axiosInstance.get(
         `${API_URL}/notification/delete/${req.params.id}`
       );
+
+      res.redirect("/notification")
       
     } catch (error) {
       console.error('Error fetching notifications:', error.message);

@@ -219,3 +219,10 @@ ADD COLUMN org_id INT;
 
 ALTER TABLE location
 ADD COLUMN org_id INT;
+
+ALTER TABLE notification
+ADD COLUMN archive bool DEFAULT FALSE;
+UPDATE notification SET archive = FALSE;
+
+
+

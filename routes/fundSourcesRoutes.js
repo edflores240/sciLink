@@ -1,5 +1,6 @@
 import { Router } from "express";
 import axios from "axios";
+import handleError from "../utils/handleError.js";
 
 const createFundSourceRoutes = (isAuthenticated) => {
   const router = Router();
@@ -9,21 +10,17 @@ const createFundSourceRoutes = (isAuthenticated) => {
   router.get("/", isAuthenticated, async (req, res) => {
     console.log("rfs1     ")
     try {
-
       const fundSources = await axios.get(`${API_URL}/fundSource`);
-        // console.log(fundSources.data)
+      // console.log(fundSources.data)
       res.render("user/fundSources/fundSourcesManagement.ejs", {
         user: req.user,
         data: fundSources.data,
         messages: req.flash("messages"),
         title: "Fund Source Manager",
       });
-
     } catch (error) {
-      console.error("Error fetching fund sources:", error);
-      res.status(500).json({ message: "Error fetching fund sources" });
+      handleError(error, req, res);
     }
-
   });
 
   // Create a new fund source
@@ -34,12 +31,11 @@ const createFundSourceRoutes = (isAuthenticated) => {
       await axios.post(`${API_URL}/fundSource/create`, { fund_source_num, fund_source_name });
       res.redirect("/fundSource");
     } catch (error) {
-      console.error("Error creating fund source:", error);
-      res.status(500).json({ message: "Error creating fund source" });
+      handleError(error, req, res);
     }
   });
 
-  // Update an existing fund source
+  // Update an existing fund sources
   router.post("/update", isAuthenticated, async (req, res) => {
     console.log("rfu1     ")
     try {
@@ -47,8 +43,7 @@ const createFundSourceRoutes = (isAuthenticated) => {
       await axios.post(`${API_URL}/fundSource/update`, { id, fund_source_num, fund_source_name });
       res.redirect("/fundSource");
     } catch (error) {
-      console.error("Error updating fund source:", error);
-      res.status(500).json({ message: "Error updating fund source" });
+      handleError(error, req, res);
     }
   });
 
@@ -60,8 +55,7 @@ const createFundSourceRoutes = (isAuthenticated) => {
       await axios.post(`${API_URL}/fundSource/delete`, { id });
       res.redirect("/fundSource");
     } catch (error) {
-      console.error("Error deleting fund source:", error);
-      res.status(500).json({ message: "Error deleting fund source" });
+      handleError(error, req, res);
     }
   });
 
