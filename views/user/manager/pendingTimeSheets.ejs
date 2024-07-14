@@ -83,9 +83,9 @@
           <tr>
             <th scope="col" class="hidden">User Email</th>
             <th scope="col">Work Date</th>
-            <th scope="col">Time Start</th>
-            <th scope="col">Time Finish</th>
-            <th scope="col">Time Total</th>
+            <th scope="col">Time Info</th>
+            <th scope="col">Variance Type</th>
+        
             <th scope="col" class="hidden">Location Name</th>
             <th scope="col">Activity</th>
             <th scope="col">Actions</th>
@@ -103,34 +103,49 @@
                 <%= new Date(timesheet.work_date).toDateString() %> </br>
                 <%= timesheet.holiday_name %>
               </td>
-              <td><%= timesheet.time_start %></td>
-              <td><%= timesheet.time_finish %></td>
-              <td><%= timesheet.time_total %></td>
+              <td style="text-align: left;"> 
+                
+                <p><strong>Start: </strong> <%= timesheet.time_start %></p>
+                <p><strong>Finish:</strong> <%= timesheet.time_finish %> </p>
+                <% const totalHoursArray = timesheet.time_total.split(':'); %>
+                <p><Strong>Total:</Strong> <%= totalHoursArray[0] %> Hrs <%= totalHoursArray[1] %> Min</p>
+              
+              </td>
+              <td style="text-transform: uppercase; font-weight: bold;"><%= timesheet.variance_type %></td>
+        
               <td><%= timesheet.location_name %></td>
               <td><%= timesheet.activity %></td>
               <% if (timesheet.id) { %>
-                <td style="display: flex; flex-direction: row;">
-
+                <td >
+                  
+                    
+                  
                   <%if(timesheetIssuesFiltered.length == 0) {%>
-                  <form action="/timesheet/approveTs?page=pending" method="post">
+                  <form action="/timesheet/approveTs?page=pending" method="post" style="height: 100%;display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 5px;">
                     <input type="hidden" name="ts_id" value="<%= timesheet.id %>">
-                    <button class=" btn btn-success d-flex justify-content-center align-center" style="height: 30px; width:  30px;" " type="submit" >
+                    <button class=" btn btn-success d-flex justify-content-center align-center" style="height: 30px; width:  30px;" type="submit" >
                       <i class="fa-solid fa-check" aria-hidden="true"></i>
                     </button>
                   </form>
                   <%} else {%>
-                    <button class="expand-btn btn btn-danger d-flex justify-content-center align-center" style="height: 30px; width:  30px;" data-bs-toggle="collapse" data-bs-target="#expandRow<%= index %>" aria-expanded="false" aria-controls="expandRow<%= index %>">
-                      <i class="fa-solid fa-check m-auto" aria-hidden="true"></i>
-                    </button>
+       
+                      <button  class="expand-btn btn btn-danger d-flex justify-content-center align-center" style="height: 30px; width:  30px; margin: auto;" data-bs-toggle="collapse" data-bs-target="#expandRow<%= index %>" aria-expanded="false" aria-controls="expandRow<%= index %>">
+                        <i class="fa-solid fa-check m-auto" aria-hidden="true"></i>
+                      </button>
+                    
+                
                 
                   <%}%>
                   <form action="/timesheet/rejectTs?page=pending" method="post">
                     <input type="hidden" name="ts_id" value="<%= timesheet.id %>">
-                    <button class="delete-icon" type="submit" style="border: none; background-color: transparent;">
-                      <i class="fa fa-solid fa-trash" aria-hidden="true"></i>
+                    <button class="delete-icon" type="submit" style="border: none; background-color: transparent; color: red;">
+                      <i class="fa fa-solid fa-ban" aria-hidden="true"></i>
                     </button>
                   </form>
-                 
+                  
+                  <a href="/timesheets/<%= timesheet.id%>"><i class="fa-solid fa-eye view-icon"
+                    aria-hidden="true"></i></a>
+           
                 </td>
                 <td>
                   <%if(timesheetIssuesFiltered.length == 0) {%>
@@ -237,7 +252,7 @@
       console.log(markedIds);
       const form = document.createElement('form');
       form.method = 'POST';
-      form.action = '/timesheet/multipleRejectTs?page=approved';
+      form.action = '/timesheet/multipleRejectTs?page=pending';
       const input = document.createElement('input');
       input.type = 'hidden';
       input.name = 'ids';

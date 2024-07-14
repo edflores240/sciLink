@@ -281,7 +281,7 @@
                 }
 
                 // Handle flexitime option
-                if (varianceSelect.value === 'flexi') {
+                if (varianceSelect.value == 'flexi') {
                     const flexiAccruedInput = document.getElementById('flexi_accrued');
                     const flexiTakenInput = document.getElementById('flexi_taken');
                     flexiAccruedInput.value = "";
@@ -294,7 +294,8 @@
                 }
 
                 // Handle tiltime option
-                if (varianceSelect.value === 'til') {
+                if (varianceSelect.value == 'til') {
+                
                     const tilAccruedInput = document.getElementById('til_accrued');
                     const tilTakenInput = document.getElementById('til_taken');
                     tilAccruedInput.value = "";
@@ -307,7 +308,7 @@
                 }                
 
                 // Handle overtime option
-                if (varianceSelect.value === 'overtime' ) {
+                if (varianceSelect.value == 'overtime' ) {
                     const overtimeInput = document.getElementById('time_overtime');
                     overtimeInput.value = "";
                     if (overtimeHours > 0) {
@@ -317,7 +318,7 @@
 
                 // Handle leave option
                 console.log('varianceSelect.value', varianceSelect.value);
-                if (varianceSelect.value === 'leave' ) {
+                if (varianceSelect.value == 'leave' ) {
                     const leaveInput = document.getElementById('time_leave');
                     leaveInput.value = "";
                     if (leaveHours < 0) {

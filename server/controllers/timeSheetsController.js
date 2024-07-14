@@ -312,7 +312,7 @@ const editTimesheet = async (req, res) => {
   const {
     person_id,
     username,
-    work_date,
+    work_date, 
     time_start,
     time_finish,
     time_total,
@@ -338,7 +338,7 @@ const editTimesheet = async (req, res) => {
   } = req.body;
 
   const ts_id = req.params.id;
-
+  
   try {
     const { rows } = await pool.query("SELECT * FROM ts_timesheet_t WHERE id = $1", [ts_id]);
     if (rows.length === 0) {
@@ -415,6 +415,34 @@ const editTimesheet = async (req, res) => {
   }
 };
 
+const getTimesheetById = (req ,res ) => {
+
+    const tsId = req.params.id
+
+    const query = `
+    SELECT
+	*
+FROM
+	ts_timesheet_t
+	INNER JOIN
+	staff_hierarchy
+	ON 
+		ts_timesheet_t.person_id = staff_hierarchy.user_id
+	WHERE 
+	
+	ts_timesheet_t.id = $1`
+
+    pool.query(query, [tsId], (err, result) => {
+
+        if(err) { 
+            return res.status(500).json(err)
+        } else { 
+            return res.status(200).json(result.rows);
+        }
+    })
+
+}
+
 
 
 
@@ -423,6 +451,7 @@ export {
     postDayOff, 
     checkTimesheetExist,
     getIndividualTimesheetsById,
+    getTimesheetById,
     getPendingIndividualTimesheet,
     editTimesheet
 }

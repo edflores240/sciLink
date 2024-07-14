@@ -49,13 +49,18 @@
               </div>
               <div class="mb-3">
                 <label for="editActivityStatus" class="form-label">Status</label>
-                <input type="text" class="form-control" id="editActivityStatus" name="status" value="" required>
+                <!-- <input type="text" class="form-control" id="editActivityStatus" name="status" value="" required> -->
+                <select name="status" id="" class="form-control" required>
+                  <option value="emergency">Emergency</option>
+                  <option value="user_defined">User Defined</option>
+
+                </select>
               </div>
               <div id="programInputsContainer" class="col">
                 <div id="programPercentageInputs" class="row">
                   <div class="col-md-6">
                     <label for="addActivityPrograms" class="form-label">Programs</label>
-                    <input type="text" class="form-control program-input-field" name="programs" required>
+                    <input type="number" class="form-control program-input-field" name="programs" required>
                   </div>
                   <div class="col-md-4">
                     <label for="addActivityPercentages" class="form-label">Percentages</label>
@@ -156,8 +161,14 @@
                 </div>
                 <div class="mb-3">
                   <label for="editActivityStatus<%= activity.status%>" class="form-label">Status</label>
-                  <input type="text" class="form-control" id="editActivityStatus" name="status"
-                    value="<%= activity.status%>" required>
+                  <!-- <input type="text" class="form-control" id="editActivityStatus" name="status"
+                    value="<%= activity.status%>" required> -->
+
+                    <select name="status" id="" class="form-control" required>
+                      <option value="emergency" <%= activity.status == 'emergency' ? "selected" : "" %>>Emergency</option>
+                      <option value="user_defined" <%= activity.status == 'user_defined' ? "selected" : "" %>>User Defined</option>
+    
+                    </select>
                 </div>
 
                 <div id="editProgramInputsContainer<%= activity.id %>" class="col">
@@ -165,8 +176,10 @@
                     <% activity.programs.forEach((program, index)=> { %>
                       <div class="col-md-6">
                         <label for="editActivityPrograms" class="form-label">Programs</label>
-                        <input type="text" class="form-control program-input-field" name="programs[]"
+                        <input type="number" class="form-control program-input-field" name="programs[]"
                           value="<%= program %>" required>
+
+                          
                       </div>
                       <div class="col-md-4">
                         <label for="editActivityPercentages" class="form-label">Percentages</label>

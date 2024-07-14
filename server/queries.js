@@ -1,4 +1,4 @@
-import { pool } from "./middleware.js";
+import { pool, queryDatabase } from "./middleware.js";
 import { createNotification } from "./controllers/notificationController.js";
 
 //--------------------------------
@@ -129,6 +129,7 @@ const getCurrentYearTimesheetsForUser = (req, res) => {
       personID +
       ");"
   );
+  
   // Execute the query with currentYear and username as parameters
   pool.query(query, [currentYear, personID], (error, result) => {
     if (error) {
@@ -342,10 +343,27 @@ const getRdoById = (req, res) => {
 //#region users table
 
 const getUsers = (req, res) => {
-  console.log("qg1   ")
-  pool.query(`SELECT *
-              FROM users LEFT JOIN leave_balances ON users.id = leave_balances.person_id
-              ORDER BY users.id ASC;`, (error, results) => {
+
+  const orgID = req.params.orgID;
+  
+  console.log("qg1   orgID", orgID);  
+  pool.query(`
+SELECT
+	*
+FROM
+	users
+	LEFT JOIN
+	leave_balances
+	ON 
+		users."id" = leave_balances.person_id
+	INNER JOIN
+	personelle
+	ON 
+		users."id" = personelle.person_id
+WHERE
+	personelle.org_id = $1
+ORDER BY
+users."id" ASC;`, [orgID], (error, results) => {
     if (error) {
       console.log(error);
       throw error;
@@ -449,10 +467,12 @@ const updateUser = (req, res) => {
     `uu6     UPDATE users SET ${setClause} WHERE id = $${values.length}`
   );
   console.log("uu7     ", values);
+  
   pool.query(
     `UPDATE users SET ${setClause} WHERE id = $${values.length}`, // Dynamic SET clause
     values,
     (error, results) => {
+
       if (error) {
         console.log("uu8   ");
         throw error;
@@ -460,12 +480,12 @@ const updateUser = (req, res) => {
       res.status(200).send(`User(${id}) modified successfully`);
     }
   );
-  console.log("uu9   ");
+  console.log("uu9 ");
 };
 
 const createUser = (req, res) => {
   console.log("k1 ");
-  const { username, email, password, role, verificationToken, verified_email } =
+  const { org_id, username, email, password, role, verificationToken, verified_email } =
     req.body;
   console.log("k2", req.body);
 
@@ -510,14 +530,18 @@ const createUser = (req, res) => {
 
         // INSERTING THE REGISTERED USER TO THE ts_user_t
 
-        !error && pool.query("INSERT INTO ts_user_t (person_id) VALUES ($1)", [userId], (error, result) => {
-          if (error) {
-            console.error("k8    Adding User Error:", error);
-            return res
-              .status(500)
-              .json({ messages: ["Error adding user to the database"] });
-          } })
+        // !error && pool.query("INSERT INTO ts_user_t (person_id) VALUES ($1)", [userId], (error, result) => {
+        //   if (error) {
+        //     console.error("k8    Adding User Error:", error);
+        //     return res
+        //       .status(500)
+        //       .json({ messages: ["Error adding user to the database"] });
+        //   } })
 
+        if (org_id != undefined || org_id != null) {
+
+          pool.query(`INSERT INTO personelle (person_id , position, org_id) VALUES ($1, $2, $3)`, [userId , 'user', org_id])
+        }
 
           // the schedule id of the flexible time is "0"
           const defaultScheduleQuery = `

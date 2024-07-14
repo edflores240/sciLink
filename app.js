@@ -1,6 +1,3 @@
-//--------------------------------------
-//----  Program setup and dependancies
-//--------------------------------------
 //#region imports
 import express from "express";
 import session from "express-session";
@@ -19,7 +16,7 @@ import { error } from "console";
 import path from "path";
 
 // ROUTES IMPORts
-
+// ROUTES IMPORTS
 import createLocationRoutes from "./routes/locationRoutes.js";
 import createActivityRoutes from "./routes/activityRoutes.js";
 import createTimesheetRoutes from "./routes/timeSheetsRoutes.js";
@@ -28,10 +25,12 @@ import createManagerRoutes from "./routes/managerRoutes.js";
 import { userInfo } from "os";
 import createProfileRoutes from "./routes/profileRoutes.js";
 import createNotificaitonRoute from "./routes/notificationRoutes.js";
+import handleError from "./utils/handleError.js";
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 const app = express();
-// Serve static filess
+
+// Serve static files
 app.use(express.static(__dirname + "/public"));
 
 // Middleware to set the correct MIME type for CSS files
@@ -43,7 +42,6 @@ app.use((req, res, next) => {
 });
 
 const API_URL = "http://localhost:4000";
-// let baseURL = "";
 const saltRounds = 10;
 env.config();
 if (process.env.SESSION_SECRET) {
@@ -66,8 +64,10 @@ app.use(
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true,
+    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 7 days in milliseconds
   })
 );
+
 app.use(flash());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
@@ -82,71 +82,6 @@ app.use((req, res, next) => {
   res.locals.config = config;
   next();
 });
-
-//#region logging not used any more
-// // Middleware to log connections
-// app.use((req, res, next) => {
-//     // Define an inner async function to use await
-//     const handleRequest = async () => {
-//         const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-//         const userAgent = req.headers['user-agent'];
-//         const [browser, os] = parseUserAgent(userAgent);
-//         const now = new Date().toISOString();
-//         //    const sessionId = await bcrypt.hash(req.sessionID, 10);
-//         const hashedSessionId = await bcrypt.hash(req.sessionID, 10);            //more secure against session hijacking attacks.
-//         const sessionId = hashedSessionId.substring(0, 8); // Extract a portion of the hash
-//         const sanitizedBody = { ...req.body };          // Clone the req.body object to avoid modifying the original request
-//         if (sanitizedBody.hasOwnProperty('password')) {
-//             sanitizedBody.password = '***';         // dont reveal the unhashed password in the logging table
-//         }
-//         const reqJSON = JSON.stringify({
-//         endpoint: req.originalUrl,
-//         params: req.params,
-//         query: req.query,
-//         body: sanitizedBody
-//         });
-
-//         // Check if the session ID is valid (recognized by passport)
-//         if (!req.isAuthenticated()) {
-//             console.error(`Attempted session hijacking attack detected: Session ID ${sessionId}`);
-//         }
-
-//         db.query(      // Insert data into the debug table
-//         'INSERT INTO debug (timestamp, ip_address, session_id, browserOS, agent, request) VALUES ($1, $2, $3, $4, $5, $6)',
-//         [now, ip, sessionId, browser + " on " + os, userAgent, reqJSON],
-//         (err, result) => {
-//             if (err) {
-//             console.error('Error inserting data into debug table:', err);
-//             } else {
-//             //console.log('Data inserted into debug table:', result.rows);
-//             }
-//         }
-//         );
-
-//     }
-
-//     // Call the async function immediately
-//     handleRequest().then(() => {
-//         next();
-//     }).catch(next);
-//   });
-
-//   // Function to parse user agent string and extract browser and OS information
-//   function parseUserAgent(userAgent) {
-//     // Use a library like 'useragent' for more accurate parsing
-//     // This is a basic example
-//     const browserMatch = userAgent.match(/(Firefox|Chrome|Safari|Opera|MSIE)\/([\d.]+)/);
-//     const osMatch = userAgent.match(/\((Windows NT [\d.]+|Macintosh|Linux|iPhone|iPad|Android)\)/);
-//     const browser = browserMatch ? browserMatch[1] : 'Unknown';
-//     let os = osMatch ? osMatch[1] : 'Unknown';
-//     if (os.startsWith('Windows')) {
-//         os = 'Windows NT 10.0'; // or extract the actual version if available
-//     }
-//     return [browser, os];
-// }
-//#endregion
-
-//#endregion
 
 // Middleware to check if user is authenticated
 const isAuthenticated = (req, res, next) => {
@@ -166,7 +101,8 @@ const isAdmin = (req, res, next) => {
     return next();
   } else {
     console.log("iad3   user is admin");
-    return res.status(403).json({ messages: ["Permission denied"] });
+    console.log("iad3 STATUS: PERMISSION DENIED");
+    return res.redirect("/login");
   }
 };
 
@@ -196,6 +132,7 @@ const runManager = (req, res, next) => {
 
   const allowedRoutes = [
     "/notification",
+    "/notification/delete/:id",
     "/notification/fetch",
     "/notification/unseen",
     "/notification/markAsSeen",
@@ -207,9 +144,11 @@ const runManager = (req, res, next) => {
     "/timesheet/approveTs",
     "/timesheet/multipleApproveTs",
     "/timesheet/multipleRejectTs",
+    "/timesheet/multiplePendingTs",
     "/timesheet/rejectTs",
+    "/timesheet/pendingTs",
     "/time",
-    "/profile",
+    "/profile", 
     "/profile/update",
     "/profile/check",
     "/emergencyEntry",
@@ -228,12 +167,15 @@ const runManager = (req, res, next) => {
     if (
       allowedRoutes.includes(req.path) ||
       req.path.startsWith("/deleteTimesheet/") ||
-     
       req.path.startsWith("/timesheets/")
     ) {
       next();
     } else {
-      res.status(403).json({ messages: ["Permission denied"] });
+      // res.status(403).json({ messages: ["Permission denied"] });
+    console.log("iad3 STATUS: PERMISSION DENIED")
+
+      return res.redirect("/login");
+      
     }
     console.log("rm4    ");
   } else {
@@ -268,64 +210,61 @@ app.use("/fundSource", createFundSourceRoutes(isAuthenticated));
 //#region regular users
 
 app.get("/time", isAuthenticated, async (req, res) => {
-  // console.log(`t1    ${API_URL}/timesheets/${req.user.id}`);
+  try {
+    const result = await axios.get(`${API_URL}/timesheets/${req.user.id}`);
+    const publicHolidays = await axios.get(`${API_URL}/publicHolidays`);
+    const flexTilRdo = await axios.post(`${API_URL}/tfr/${req.user.id}`);
 
-  const result = await axios.get(`${API_URL}/timesheets/${req.user.id}`);
-  const publicHolidays = await axios.get(`${API_URL}/publicHolidays`);
-  const flexTilRdo = await axios.post(`${API_URL}/tfr/${req.user.id}`);
-  // console.log(flexTilRdo.data[0])
-  // console.log("t2    got " + result.data.length + " timesheets ");
+    const formatDate = (dateString) => {
+      const date = new Date(dateString);
+      const options = { day: "2-digit", month: "short", year: "numeric" };
+      return date.toLocaleDateString("en-US", options);
+    };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const options = { day: "2-digit", month: "short", year: "numeric" };
-    return date.toLocaleDateString("en-US", options);
-  };
+    const filteredData = result.data.map((entry) => ({
+      id: entry["id"],
+      work_date: formatDate(entry["work_date"]),
+      time_start: entry["time_start"],
+      time_finish: entry["time_finish"],
+      time_total: entry["time_total"],
+      time_accrued: entry["time_flexi"],
+      time_til: entry["time_til"],
+      time_leave: entry["time_leave"],
+      time_overtime: entry["time_overtime"],
+      time_comm_svs: entry["time_comm_svs"],
+      comment: entry["t_comment"],
+      location_id: entry["location_id"],
+      activity: entry["activity"],
+      notes: entry["notes"],
+      status: entry["status"],
+      holiday_name: publicHolidays.data.find(
+        (holiday) =>
+          entry["work_date"].slice(0, 10) === holiday.holiday_date.slice(0, 10)
+      )?.holiday_name,
+      is_weekend:
+        new Date(entry["work_date"]).getDay() === 0 ||
+        new Date(entry["work_date"]).getDay() === 6
+          ? "yes"
+          : null,
+    }));
 
-  // Filter the result.data array to include only the required fields
+    const queryMessage = req.query.m;
+    const userInfo = req.session.userInfo;
 
-  const filteredData = result.data.map((entry) => ({
-    id: entry["id"],
-    work_date: formatDate(entry["work_date"]),
-    time_start: entry["time_start"],
-    time_finish: entry["time_finish"],
-    time_total: entry["time_total"],
-    time_accrued: entry["time_flexi"],
-    time_til: entry["time_til"],
-    time_leave: entry["time_leave"],
-    time_overtime: entry["time_overtime"],
-    time_comm_svs: entry["time_comm_svs"],
-    comment: entry["t_comment"],
-    location_id: entry["location_id"],
-    activity: entry["activity"],
-    notes: entry["notes"],
-    status: entry["status"],
-    holiday_name: publicHolidays.data.find(
-      (holiday) =>
-        entry["work_date"].slice(0, 10) === holiday.holiday_date.slice(0, 10)
-    )?.holiday_name,
-    is_weekend:
-      new Date(entry["work_date"]).getDay() === 0 ||
-      new Date(entry["work_date"]).getDay() === 6
-        ? "yes"
-        : null,
-  }));
-
-  const queryMessage = req.query.m;
-  // console.log("aldk;aslk", queryMessage);
-
-  const userInfo = req.session.userInfo;
-
-  res.render("timesheet/main.ejs", {
-    title: "Timesheet",
-    user: req.user,
-    userInfo: userInfo,
-    queryMessage: queryMessage,
-    flexTilRdo: flexTilRdo.data[0],
-    tableData: filteredData,
-    messages: req.flash("messages"),
-  });
-  console.log("t9  returned users timesheets ");
+    res.render("timesheet/main.ejs", {
+      title: "Timesheet",
+      user: req.user,
+      userInfo: userInfo,
+      queryMessage: queryMessage,
+      flexTilRdo: flexTilRdo.data[0],
+      tableData: filteredData,
+      messages: req.flash("messages"),
+    });
+    console.log("t9  returned users timesheets ");
+  } catch (error) {
+    handleError(error, req, res);
+    res.redirect("/time");
+  }
 });
 
 app.get("/timesheetEntry", isAuthenticated, async (req, res) => {
@@ -340,31 +279,27 @@ app.get("/timesheetEntry", isAuthenticated, async (req, res) => {
   }
 
   try {
-    const myManager = await axios.get(`${API_URL}/users/checkMyManger/${userId}`)
+    const myManager = await axios.get(`${API_URL}/users/checkMyManger/${userId}`);
 
-   if(myManager.data.length == 0) { 
-    return res.redirect("/profile?status=noManager") // Use return to stop further execution
-   }
+    if (myManager.data.length == 0) {
+      return res.redirect("/profile?status=noManager"); // Use return to stop further execution
+    }
 
     const locationResponse = await axios.get(`${API_URL}/location`);
     const userScheduleResponse = await axios.get(`${API_URL}/userSchedule/${req.user.id}`);
     let userSchedules = [];
     let allDateSchedules = [];
 
-    console.log("the user schedule", userScheduleResponse.data)
+    console.log("the user schedule", userScheduleResponse.data);
 
-    if (!userScheduleResponse.data.length < 1 ) {
+    if (!userScheduleResponse.data.length < 1) {
       const scheduleDays = userScheduleResponse.data[0].schedule_day;
       const paidHours = userScheduleResponse.data[0].paid_hours;
       const startDate = new Date(userScheduleResponse.data[0].start_date);
       const endDate = new Date(userScheduleResponse.data[0].end_date);
 
-    
-
       userSchedules = getPayPeriods(startDate, endDate, scheduleDays, paidHours);
       console.log("user schedules: ", userSchedules);
-
-
     }
 
     function getDayOfWeekName(dayOfWeek) {
@@ -373,25 +308,13 @@ app.get("/timesheetEntry", isAuthenticated, async (req, res) => {
     }
 
     function getPayPeriods(startDate, endDate, scheduleDays, paidHours) {
-      
-
       let currentDate = new Date(startDate);
       let i = 0;
       let paidHour = 0;
       while (currentDate <= endDate) {
         const dayOfWeek = currentDate.getDay();
-        if (getDayOfWeekName(dayOfWeek) == "Sunday" || getDayOfWeekName(dayOfWeek) == "Saturday") { 
 
-          if (i <= paidHours.length - 1) {
-            paidHour = paidHours[i] == 0 ? 7.6 : paidHours[i];
-            if (i == paidHours.length - 1) {
-              i = 0;
-            } else {
-              i += 1;
-            }
-          }
-          
-        } else if (scheduleDays.includes(getDayOfWeekName(dayOfWeek))) {
+        if (scheduleDays.includes(getDayOfWeekName(dayOfWeek))) {
           if (i <= paidHours.length - 1) {
             paidHour = paidHours[i];
             if (i == paidHours.length - 1) {
@@ -412,7 +335,6 @@ app.get("/timesheetEntry", isAuthenticated, async (req, res) => {
               disable_til: userScheduleResponse.data[0].disable_til,
               disable_flexi: userScheduleResponse.data[0].disable_flexi,
               disable_rdo: userScheduleResponse.data[0].disable_rdo
-            
             });
           }
         }
@@ -423,13 +345,14 @@ app.get("/timesheetEntry", isAuthenticated, async (req, res) => {
     }
 
     const location = locationResponse.data;
-
     const selectedDate = req.query.date;
 
     const timesheetExists = await axios.post(
       `${API_URL}/timesheets/checkTimeSheetsExist`,
       { date: selectedDate, userID: userId }
     );
+
+    const recentLocation = await axios.get(`${API_URL}/location/getRecentLocation/${req.user.id}`);
 
     if (timesheetExists.data.timesheetExists) {
       res.redirect("/time?m=dateAlreadyExist");
@@ -443,14 +366,15 @@ app.get("/timesheetEntry", isAuthenticated, async (req, res) => {
           userWorkSchedule: userSchedules,
           selectedDate: selectedDate,
           location: location,
+          recentLocation: recentLocation.data,
           title: "Enter Timesheet",
           messages: req.flash("messages"),
         });
       }
     }
   } catch (error) {
-    console.error("Error in timesheetEntry route:", error);
-    res.status(500).send("Internal Server Error");
+    handleError(error, req, res);
+    // res.status(500).send("Internal Server Error");
   }
 });
 
@@ -529,17 +453,17 @@ app.post(
     // body('til_taken').optional().isNumeric().withMessage('Invalid numeric format for til_taken')
   ],
   async (req, res) => {
-    console.log("n10 ", req.body);
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      req.flash(
-        "messages",
-        errors.array().map((error) => error.msg)
-      );
-      return res.redirect("/time");
-    }
-
     try {
+      console.log("n10 ", req.body);
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        req.flash(
+          "messages",
+          errors.array().map((error) => error.msg)
+        );
+        return res.redirect("/time");
+      }
+
       const {
         work_date,
         time_start,
@@ -675,7 +599,7 @@ app.post(
       req.flash("messages", "Thank you for entering your timesheet");
       return res.redirect("/time");
     } catch (error) {
-      console.error("n80     Error creating timesheet:", error);
+      handleError(error, req, res);
       req.flash(
         "messages",
         "An error occurred while creating the timesheet - the timesheet was not saved"
@@ -686,48 +610,52 @@ app.post(
 );
 
 app.get("/emergencyEntry", isAuthenticated, async (req, res) => {
-  console.log(`yg1   `);
-
-  const selectedDate = req.query.date;
-
-  let formData = {}; // Declare formData before assigning values to it
-
   try {
-    const result = await axios.get(`${API_URL}/rdo/${req.user.id}`);
-    console.log("yg2    user RDO ", result.data);
+    console.log(`yg1   `);
 
-    formData = {
-      RDO: result.data[0].is_eligible,
-    };
+    const selectedDate = req.query.date;
+
+    let formData = {}; // Declare formData before assigning values to it
+
+    try {
+      const result = await axios.get(`${API_URL}/rdo/${req.user.id}`);
+      console.log("yg2    user RDO ", result.data);
+
+      formData = {
+        RDO: result.data[0].is_eligible,
+      };
+    } catch (error) {
+      console.error("Error fetching RDO:", error);
+      handleError(error, req, res); // Handle error using the handleError function
+      formData = {
+        RDO: null, // Set RDO to some default value or handle error case appropriately
+      };
+    }
+
+    const date = req.query.date; // Pick up the date from the URL parameter
+
+    if (!date) {
+      res.redirect("/time?m=dateAlreadyExist");
+    }
+
+    const timesheetExists = await axios.post(
+      `${API_URL}/timesheets/checkTimeSheetsExist`,
+      { date: selectedDate, userID: req.user.id }
+    );
+
+    if (timesheetExists.data.timesheetExists) {
+      res.redirect("/time?m=dateAlreadyExist");
+    } else {
+      res.render("timesheet/emergencyResponse.ejs", {
+        formData,
+        selectedDate: selectedDate,
+        user: req.user,
+        title: "Enter Timesheet",
+        messages: req.flash("messages"),
+      });
+    }
   } catch (error) {
-    console.error("Error fetching RDO:", error);
-    // Handle error appropriately, e.g., set formData.RDO to some default value
-    formData = {
-      RDO: null, // Set RDO to some default value or handle error case appropriately
-    };
-  }
-
-  const date = req.query.date; // Pick up the date from the URL parameter
-
-  if (!date) {
-    res.redirect("/time?m=dateAlreadyExist");
-  }
-
-  const timesheetExists = await axios.post(
-    `${API_URL}/timesheets/checkTimeSheetsExist`,
-    { date: selectedDate, userID: req.user.id }
-  );
-
-  if (timesheetExists.data.timesheetExists) {
-    res.redirect("/time?m=dateAlreadyExist");
-  } else {
-    res.render("timesheet/emergencyResponse.ejs", {
-      formData,
-      selectedDate: selectedDate,
-      user: req.user,
-      title: "Enter Timesheet",
-      messages: req.flash("messages"),
-    });
+    handleError(error, req, res); // Handle any uncaught errors using the handleError function
   }
 });
 
@@ -839,51 +767,55 @@ app.post(
 );
 
 app.get("/plannedLeave", isAuthenticated, async (req, res) => {
-  const selectedDate = req.query.date;
+  try {
+    const selectedDate = req.query.date;
 
-  const result = await axios.get(`${API_URL}/timesheets/${req.user.id}`);
+    const result = await axios.get(`${API_URL}/timesheets/${req.user.id}`);
 
-  const publicHolidays = await axios.get(`${API_URL}/publicHolidays`);
+    const publicHolidays = await axios.get(`${API_URL}/publicHolidays`);
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const options = { day: "2-digit", month: "short", year: "numeric" };
-    return date.toLocaleDateString("en-US", options);
-  };
+    const formatDate = (dateString) => {
+      const date = new Date(dateString);
+      const options = { day: "2-digit", month: "short", year: "numeric" };
+      return date.toLocaleDateString("en-US", options);
+    };
 
-  // Filter the result.data array to exclude entries where id === null
-  const filteredData = result.data
-    .filter((entry) => entry["id"] !== null)
-    .map((entry) => ({
-      work_date: formatDate(entry["work_date"]),
-      id: entry["id"],
-    }));
+    // Filter the result.data array to exclude entries where id === null
+    const filteredData = result.data
+      .filter((entry) => entry["id"] !== null)
+      .map((entry) => ({
+        work_date: formatDate(entry["work_date"]),
+        id: entry["id"],
+      }));
 
-  // console.log(publicHolidays.data)
+    // console.log(publicHolidays.data)
 
-  const date = req.query.date; // Pick up the date from the URL parameter
+    const date = req.query.date; // Pick up the date from the URL parameter
 
-  if (!date) {
-    res.redirect("/time?m=dateAlreadyExist");
-  }
+    if (!date) {
+      res.redirect("/time?m=dateAlreadyExist");
+    }
 
-  const timesheetExists = await axios.post(
-    `${API_URL}/timesheets/checkTimeSheetsExist`,
-    { date: selectedDate, userID: req.user.id }
-  );
+    const timesheetExists = await axios.post(
+      `${API_URL}/timesheets/checkTimeSheetsExist`,
+      { date: selectedDate, userID: req.user.id }
+    );
 
-  if (timesheetExists.data.timesheetExists) {
-    res.redirect("/time?m=dateAlreadyExist");
-  } else {
-    // Render the leavePlanned.ejs file
-    res.render("timesheet/leavePlanned.ejs", {
-      workDays: filteredData,
-      selectedDate: selectedDate,
-      publicHolidays: publicHolidays.data,
-      title: "Leave Request",
-      user: req.user,
-      messages: req.flash("messages"),
-    });
+    if (timesheetExists.data.timesheetExists) {
+      res.redirect("/time?m=dateAlreadyExist");
+    } else {
+      // Render the leavePlanned.ejs file
+      res.render("timesheet/leavePlanned.ejs", {
+        workDays: filteredData,
+        selectedDate: selectedDate,
+        publicHolidays: publicHolidays.data,
+        title: "Leave Request",
+        user: req.user,
+        messages: req.flash("messages"),
+      });
+    }
+  } catch (error) {
+    handleError(error, req, res);
   }
 });
 
@@ -1004,6 +936,7 @@ app.get("/deleteTimesheet/:id", async (req, res) => {
       "de8  Error deleting timesheet:",
       error.response ? error.response.data : error.message
     );
+    handleError(error, req, res)
   }
 });
 
@@ -1011,6 +944,7 @@ app.get("/approveTimesheet/:id", async (req, res) => {
   console.log("ap1  ", req.body);
   const timesheetId = req.params.id;
   const newStatus = "approved";
+
   try {
     //const scrollY = req.query.scrollY || 0; // Store the current scroll position
 
@@ -1029,6 +963,7 @@ app.get("/approveTimesheet/:id", async (req, res) => {
       "ap8      Error updating timesheet:",
       error.response ? error.response.data : error.message
     );
+    handleError(error, req, res)
   }
 });
 
@@ -1040,16 +975,35 @@ app.get("/approveTimesheet/:id", async (req, res) => {
 //#region admin
 
 app.get("/users", isAdmin, async (req, res) => {
-  console.log("u1    Admin route: Rendering settings page...");
-  const result = await axios.get(`${API_URL}/users`);
-  console.log("u2    ", result.data);
-  res.render("settings.ejs", {
-    user: req.user,
-    users: result.data,
-    title: "Users",
-    messages: req.flash("messages"),
-  });
-  console.log("u9  all users displayed on screen ");
+  try {
+    console.log("u1    Admin route: Rendering settings page...");
+    
+    const data = await axios.get(`${API_URL}/users/userInfo/${req.user.id}`);
+
+    if(data.data[0] == undefined ) {
+        return res.redirect('/profile?status=noOrganization');
+    }
+
+    if(data.data[0].org_id == undefined || data.data[0].org_id == null ) {
+       return res.redirect('/profile?status=noOrganization');
+    }
+
+    const result = await axios.get(`${API_URL}/usersByOrg/${data.data[0].org_id}`);
+    console.log("u2    ", result.data);
+
+    res.render("settings.ejs", {
+      user: req.user,
+      userInfo: data.data[0],
+      users: result.data,
+      title: "Users",
+      messages: req.flash("messages"),
+    });
+
+    console.log("u9  all users displayed on screen ");
+  } catch (error) {
+    console.error("Error in /users route:", error);
+    handleError(error, req, res);
+  }
 });
 
 app.get("/users/:id", isAuthenticated, async (req, res) => {
@@ -1074,8 +1028,10 @@ app.get("/users/:id", isAuthenticated, async (req, res) => {
     console.log("v4 ");
   } catch (error) {
     console.error("Error fetching user data:", error);
-    res.status(500).send("Error fetching user data");
+    
     console.log("v7 ");
+
+    handleError(error, req, res)
   }
   // } else {
   //     res.redirect("/login");
@@ -1107,7 +1063,23 @@ app.post(
     body("role").notEmpty().withMessage("Role is required"),
   ],
   async (req, res) => {
+
+    
     try {
+
+      const data = await axios.get(`${API_URL}/users/userInfo/${req.user.id}`);
+
+      if(data.data[0] == undefined ) {
+          return res.redirect('/profile?status=noOrganization');
+      }
+  
+      
+      if(data.data[0].org_id == undefined || data.data[0].org_id == null ) {
+         return res.redirect('/profile?status=noOrganization');
+      }
+
+      
+
       console.log("pau1   add user ", req.body);
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -1118,6 +1090,7 @@ app.post(
 
       const { username, email, password, role } = req.body;
       const userData = {
+        org_id: data.data[0].org_id,
         username,
         email,
         password,
@@ -1128,7 +1101,20 @@ app.post(
       console.log("pau3");
 
       // Register the user using the registerUser function
-      const userID = await registerUser(userData);
+      const userID = await registerUser(userData).catch((error) => {
+        if (error.response && error.response.status === 400) {
+          return res.redirect("/users?status=400");
+        } else {
+          throw error;
+        }
+      }); 
+
+      // await axios.put(`${API_URL}/users/addOrganizationToPersonelle`, {
+      //   person_id: userID,
+      //   position: 'user',
+      //   org_id: data.data[0].org_id,
+      // })
+      
       console.log("pau4");
 
       req.flash("messages", "User added successfully");
@@ -1136,13 +1122,14 @@ app.post(
       return res.redirect("/users");
     } catch (error) {
       console.error("pau8    Error adding user:", error);
-      res.status(500).send("Error adding user");
+      // res.status(500).send("Error adding user");
+      handleError(error, req, res)
     }
   }
 );
 
 app.post("/editUser", isAdmin, async (req, res) => {
-  console.log("p1     Request Body:", req.body);
+  console.log("p1 Request Body:", req.body);
 
   try {
     const { userID, username, email, password, role } = req.body;
@@ -1155,31 +1142,35 @@ app.post("/editUser", isAdmin, async (req, res) => {
       verificationToken: "updated by " + req.user.username,
       verified_email: true,
     };
-    console.log("p2   ", userData);
+    console.log("p2 ", userData);
 
-    if (password === "") {
-      const { password, ...rest } = userData; //remove password from being sent
+    // If password is provided, hash it
+    if (password !== "") {
+      userData.password = await bcrypt.hash(password, saltRounds);
+      console.log("p3 Hashed password:", userData.password);
+    } else {
+      const { password, ...rest } = userData; // Remove password from being sent
       userData = rest;
     }
-    console.log(`p3      ${API_URL}/users/${userID}`, userData);
 
-    // const userID = await registerUser(userData);   // Register the user using the registerUser function
+    console.log(`p4 ${API_URL}/users/${userID}`, userData);
+
+    // Update the user using the PUT request
     const result = await axios.put(`${API_URL}/users/${userID}`, userData);
-    console.log("p4");
-
-    console.log("p9 Updated user:", result.data);
+    console.log("p5 Updated user:", result.data);
 
     req.flash(
       "messages",
       "User updated. Skipped email verification. Ensure that the correct email was used."
     );
-    res.status(200).send("User information updated successfully");
+
+    res.redirect("/users");
   } catch (error) {
     console.error("Error updating user information:", error);
-    res.status(500).send("Internal server error");
+    // res.status(500).send("Internal server error");
+    handleError(error, req, res)
   }
 });
-
 //#endregion
 
 //-------------------------------------------------
@@ -1188,106 +1179,151 @@ app.post("/editUser", isAdmin, async (req, res) => {
 //#region Authorisation
 
 
-app.get("/login", (req, res) => {
-  console.log("li1     get login route");
-  // const errors = req.flash('messages');
-  // console.log("li2     messages : ", errors);
-  // res.render('login.ejs', { user: req.user, title: 'numbat', body: '', messages: errors });
-  console.log("li3     ");
-  const defaultEmail = process.env.DEFAULT_USER || "";
-  console.log("li4     ");
-  res.render("login.ejs", {
-    defaultEmail,
-    user: req.user,
-    title: "numbat",
-    body: "",
-    query: req.query,
-    messages: req.flash("messages"),
-  });
-  console.log("li9   ");
+app.get("/login", async (req, res) => {
+  try {
+    console.log("li1     get login route");
+    // const errors = req.flash('messages');
+    // console.log("li2     messages : ", errors);
+    // res.render('login.ejs', { user: req.user, title: 'numbat', body: '', messages: errors });
+    console.log("li3     ");
+    const defaultEmail = process.env.DEFAULT_USER || "";
+    console.log("li4     ");
+    res.render("login.ejs", {
+      defaultEmail,
+      user: req.user,
+      title: "numbat",
+      body: "",
+      query: req.query,
+      messages: req.flash("messages"),
+    });
+    console.log("li9   ");
+  } catch (error) {
+    handleError(error, req, res);
+  }
 });
 
 
+app.post("/login", async function (req, res, next) {
+  try {
+    console.log("lg1   ", req.body);
 
-
-app.post("/login", function (req, res, next) {
-  console.log("lg1   ", req.body);
-
-  passport.authenticate("local", async function (err, user, info) {
-    if (err) {
-      console.log("lg12   ", err);
-      return next(err);
-    }
-    if (!user) {
-      console.log("lg13   ", info);
-
-      if (info && info.message === "Incorrect password.") {
-        req.flash(
-          "messages",
-          "Invalid username or password. Please try again."
-        );
-      } else {
-        req.flash(
-          "messages",
-          "Email has not been verified. Please check your email for the verification link."
-        );
-      }
-      return res.redirect("/login");
-    }
-
-    req.logIn(user, async function (err) {
-      if (err) {
-        console.log("lg20   ", err);
-        return next(err);
-      }
-
+    passport.authenticate("local", async function (err, user, info) {
       try {
-        console.log("lg3   ", err);
-        const response = await axios.get(`${API_URL}/users/userInfo/${req.user.id}`);
-        const userInfo = response.data[0];
-        console.log("lg31   ", userInfo);
+        if (err) {
+          console.log("lg12   ", err);
+          throw err;
+        }
+        if (!user) {
+          console.log("lg13   ", info);
 
-        req.session.userInfo = userInfo;
-
-        if (userInfo && userInfo.position === "manager") {
-          console.log("lg40   ", err);
-          return res.redirect("/timesheet/pending");
+          if (info && info.messages[0] === "Incorrect password.") {
+            req.flash(
+              "messages",
+              "Invalid username or password. Please try again."
+            );
+          } else {
+            req.flash(
+              "messages",
+              "Email has not been verified. Please check your email for the verification link."
+            );
+          }
+          return res.redirect("/login");
         }
 
-        console.log("lg9   ", err);
-        const dateVariable = new Date().toISOString().split("T")[0];
-        return res.redirect(`/timesheetEntry?date=${dateVariable}`);
-      } catch (err) {
-        console.error('Error fetching user info:', err);
-        return next(err);
+        req.logIn(user, async function (err) {
+          try {
+            if (err) {
+              console.log("lg20   ", err);
+              throw err;
+            }
+
+            console.log("lg3   ", err);
+            try {
+              const isManager = await axios.get(
+                `${API_URL}/users/userInfo/${req.user.id}`
+              );
+              console.log("lg31   ", isManager.data[0]);
+
+              req.session.userInfo = isManager.data[0];
+              
+              if (req.session.userInfo === undefined) {
+                await axios.put(`${API_URL}/users/addPersonelleInfo/${req.user.id}`);
+              }
+
+              if (
+                req.session.userInfo &&
+                req.session.userInfo.position === "manager"
+              ) {
+                console.log("lg40   ", err);
+                return res.redirect("/timesheet/pending");
+              }
+              console.log("lg9   ", err);
+              return res.redirect("/time");
+            } catch (error) {
+              console.log("lg32   ", error);
+              throw error;
+            }
+          } catch (error) {
+            console.error("Error logging in user:", error);
+            handleError(error, req, res);
+          }
+        });
+      } catch (error) {
+        console.error("Error authenticating user:", error);
+        handleError(error, req, res);
       }
+    })(req, res, next);
+  } catch (error) {
+    console.error("Error in login route:", error);
+    handleError(error, req, res);
+  }
+});
+app.get("/logout", (req, res) => {
+  try {
+    console.log("lo1    user is logging out");
+    
+    req.logout((err) => {
+      if (err) {
+        console.error("Logout error:", err);
+        return res.redirect("/login"); // Or handle the error appropriately
+      }
+      req.session.destroy((err) => {
+        if (err) {
+          console.error("Session destruction error:", err);
+        }
+        res.clearCookie('connect.sid'); // 'connect.sid' is the default cookie name for express-session
+        res.redirect("/login");
+      });
     });
-  })(req, res, next);
+  } catch (error) {
+    console.error("Error logging out user:", error);
+    handleError(error, req, res);
+  }
 });
 
-app.get("/logout", (req, res) => {
-  console.log("lo1    user is logging out");
-  req.logout(() => {
-    res.redirect("/");
-  });
-});
 
 app.get("/register", (req, res) => {
-  console.log("r1");
-  res.render("register.ejs", {
-    title: "Register",
-    user: req.user,
-    messages: req.flash("messages"),
-  });
+  try {
+    console.log("r1");
+    res.render("register.ejs", {
+      title: "Register",
+      user: req.user,
+      messages: req.flash("messages"),
+    });
+  } catch (error) {
+    console.error("Error rendering register page:", error);
+    handleError(error, req, res);
+  }
 });
 
-const registerUser = async (userData) => {
+const registerUser = async (userData, orgID) => {
   try {
-    let { username, email, password, role, verificationToken, verified_email } =
+    let {org_id, username, email, password, role, verificationToken, verified_email } =
       userData;
     console.log("ru1 ", userData);
     const hashedPassword = await bcrypt.hash(password, saltRounds);
     console.log("ru2 ", hashedPassword);
+
 
     // Generate a verification token
     if (!verificationToken) {
@@ -1308,7 +1344,7 @@ const registerUser = async (userData) => {
       username = email;
     }
     // if (!role) {
-    //     role = "user"
+     role = "user"
     // }
     if (!email || !password) {
       throw new Error("Email and password are required.");
@@ -1317,6 +1353,7 @@ const registerUser = async (userData) => {
     // Insert a new user record into the users table with the verification token
     const result = await axios.post(`${API_URL}/users`, {
       username,
+      org_id,
       email,
       password: hashedPassword,
       role,
@@ -1353,16 +1390,18 @@ const registerUser = async (userData) => {
 
     return userID;
   } catch (error) {
-    if (error.response && error.response.status === 400) {
-      // Email already registered
-      console.log("ru7 ");
-      throw new Error("Email already registered");
-    } else if (error.response && error.response.status === 500) {
-      console.log("ru8 ");
-    } else {
-      console.log("ru9 ");
-      throw error; // Other errors
-    }
+    // if (error.response && error.response.status === 400) {
+    //   // Email already registered
+    //   console.log("ru7 Error: ", error.response);
+    //   throw new Error("Email already registered");
+    // } else if (error.response && error.response.status === 500) {
+    //   console.log("ru8 ");
+    // } else {
+    //   console.log("ru9 ");
+    //   throw error; // Other errors
+    // }
+
+    handleError(error, req, res)
   }
 };
 
@@ -1371,12 +1410,14 @@ app.post("/register", async (req, res) => {
   try {
     let { email, password } = req.body;
     console.log("gp1   ", req.body);
-    await registerUser({ email, password, role: "user" });
+    await registerUser({ email, password, role: "user",  });
     //req.flash('messages', 'User registered successfully. Please check your email for verification.');
     req.flash(
       "messages",
       "Please check your email for verification."
     );
+
+    
     console.log("gp9 registered user ok");
     res.redirect("/login");
   } catch (error) {
@@ -1388,9 +1429,11 @@ app.post("/register", async (req, res) => {
         title: "Register",
       });
     } else {
-      console.log("gp7 db error");
-      console.error("Error during registration:", error);
-      return res.status(500).send("Error registering user");
+      // console.log("gp7 db error");
+      // console.error("Error during registration:", error);
+      // return res.status(500).send("Error registering user");
+
+      handleError(error, req, res);
     }
   }
 });

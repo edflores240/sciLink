@@ -45,6 +45,21 @@ let incorrectPass = status == 404 ? true : false;
   </script>
 <%}%>
 
+
+<% if (status == "noOrganization" ) { %>
+  <div class="alert alert-danger alert-dismissible fade show" role="alert" style="margin: 50px;">
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    <strong>You are not assigned to any organization</strong> <br> Try Again If you Already have Organization!
+  </div>
+
+  <script>
+    var alertList = document.querySelectorAll(".alert");
+    alertList.forEach(function (alert) {
+      new bootstrap.Alert(alert);
+    });
+  </script>
+<%}%>
+
 <div class="modal fade " id="inputPasswordModal" tabindex="-1" aria-labelledby="inputPasswordLabel"
     aria-hidden="true">
 <div class="modal-dialog">

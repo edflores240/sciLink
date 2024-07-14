@@ -36,7 +36,7 @@ const getRecentNotifications = async (req, res) => {
         SELECT n.title, n.message, r.seen
         FROM notification n
         JOIN recipient r ON n.notification_id = r.notification_id
-        WHERE r.user_id = $1
+        WHERE r.user_id = $1 AND archive = FALSE
         AND n.created_at > NOW() - INTERVAL '24 hours'
         ORDER BY n.created_at DESC;
     `;
@@ -55,20 +55,37 @@ const getAllNotificationsByUserId = async (req, res) => {
 
   const query = `
   SELECT
-    n.*,
-    COALESCE(t.work_date, NULL) AS work_date 
+	n.*, 
+	COALESCE(t.work_date, NULL) AS work_date
 FROM
-    notification n
-LEFT JOIN
-    ts_timesheet_t t ON n.timesheet_id = t.id 
+	notification AS n
+	LEFT JOIN
+	ts_timesheet_t AS "t"
+	ON 
+		n.timesheet_id = "t"."id"
 WHERE
-    n.receiver_id = $1 OR
-    n.sender_id = $1
+	(n.receiver_id = $1 OR
+	n.sender_id = $1) AND (
+	"t".status = 'reject' OR n.notification_type = 'Manager Request') AND archive = FALSE
 ORDER BY
-    n.created_at DESC;
+	n.created_at DESC
 
     `;
+//   const query = `
+//   SELECT
+//     n.*,
+//     COALESCE(t.work_date, NULL) AS work_date 
+// FROM
+//     notification n
+// LEFT JOIN
+//     ts_timesheet_t t ON n.timesheet_id = t.id 
+// WHERE
+//     n.receiver_id = $1 OR
+//     n.sender_id = $1 
+// ORDER BY
+//     n.created_at DESC;
 
+//     `;
   try {
     await pool.query(query, [userId], (err, result) => {
       if (err) {
@@ -88,9 +105,6 @@ ORDER BY
 // Function to mark a notification as seen
 const markAsSeen = async (req, res) => {
   const userId = parseInt(req.params.userID);
-
-
-
     await pool.query(`
     UPDATE notification SET receiver_read_status = TRUE
         WHERE receiver_id = $1;
@@ -122,9 +136,13 @@ const deleteNotification = async (req, res) => {
   const notificationId = req.params.notificationID;
 
   // First, delete the recipient entries associated with the notification
+  // const deleteRecipientQuery = `
+  //       DELETE FROM notification
+  //       WHERE notification_id = $1;
+  //   `;
+
   const deleteRecipientQuery = `
-        DELETE FROM notification
-        WHERE notification_id = $1;
+        UPDATE notification SET archive = TRUE WHERE notification_id = $1;
     `;
 
   try {
@@ -144,11 +162,38 @@ const deleteNotification = async (req, res) => {
 const getCountUnseenNotifications = async (req, res) => {
   let userID = parseInt(req.params.userID)
   // console.log("userID", userID);
-  const query = `
-  SELECT COUNT(notification_id) as count
-        FROM notification
-        WHERE 	
-      ( sender_id = $1 AND sender_read_status = FALSE) OR ( receiver_id =  $1 AND receiver_read_status = FALSE) ;;
+  // const query = `
+  // SELECT COUNT(notification_id) as count
+  //       FROM notification
+  //       WHERE 	
+  //     ( sender_id = $1 AND sender_read_status = FALSE) OR ( receiver_id =  $1 AND receiver_read_status = FALSE) ;
+  //   `;  
+    const query = `
+    SELECT
+    COUNT(notification.notification_id) AS "count"
+  FROM
+    notification
+    LEFT JOIN
+    ts_timesheet_t
+    ON 
+      notification.timesheet_id = ts_timesheet_t."id"
+  WHERE
+  
+    (
+    
+    ( ts_timesheet_t.status = 'reject' OR notification_type = 'Manager Request') AND
+      sender_id = $1 AND
+      sender_read_status = FALSE
+      
+      
+    ) OR
+    (
+    
+    ( ts_timesheet_t.status = 'reject' OR notification_type = 'Manager Request') AND
+      receiver_id = $1 AND
+      receiver_read_status = FALSE
+    )  
+    
     `;
     await pool.query(query,[userID], (err, result) => { 
        if (err) {

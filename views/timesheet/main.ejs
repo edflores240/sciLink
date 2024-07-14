@@ -279,74 +279,97 @@
 
 
 
-    const populateTimesheetTable = (data) => {
-      console.log("tha Data", data)
-      timesheetBody.innerHTML = '';
-      data.forEach(timesheet => {
-        const row = document.createElement('tr');
-        row.className = `${timesheet.status === 'approved' ? 'table-success ' : ''} ${timesheet.is_weekend ? 'weekend' : ''} ${timesheet.holiday_name ? 'holiday' : ''}`;
-        row.innerHTML = `
-          <td class="work-date">${timesheet.work_date}</td>
-          <td>${timesheet.time_total}</td>
-          <td>${timesheet.time_accrued}</td>
-          <td>${timesheet.time_til}</td>
-          <td>${timesheet.time_leave}</td>
-          <td>${timesheet.time_overtime}</td>
-          <td>${timesheet.holiday_name || ''} ${timesheet.comment}</td>
-          <td>
-            ${timesheet.id && timesheet.status !== 'approved' ? `
-            <a href="/deleteTimesheet/${timesheet.id}"><i class="fa fa-solid fa-trash delete-icon" aria-hidden="true"></i></a>
-            <a href="/timesheets/edit/${timesheet.id}?work_date=${timesheet.work_date.replace(/(\w+) (\d+), (\d+)/, function(match, month, day, year) { return `${year}-${(new Date(Date.parse(`${month} 1, ${year}`)).getMonth() + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`; })}"><i class="fa fa-solid fa-edit" aria-hidden="true"></i></a>
-            ` : 
-            ``}
+const populateTimesheetTable = (data) => {
+  console.log("tha Data", data);
+  const timesheetBody = document.getElementById('timesheetBody'); // Make sure this matches your actual table body ID
+  timesheetBody.innerHTML = '';
+  let lastClickedRow = null;
 
-           ${timesheet.id ? `
-            <a href="/timesheets/${timesheet.id}"><i class="fa-solid fa-eye view-icon"
-                                aria-hidden="true"></i></a>` : 
-            ``}
+  data.forEach(timesheet => {
+    const row = document.createElement('tr');
+    row.className = `${timesheet.status === 'approved' ? 'table-success ' : ''} ${timesheet.is_weekend ? 'weekend' : ''} ${timesheet.holiday_name ? 'holiday' : ''}`;
+    row.setAttribute('tabindex', '0'); // Make the row focusable
+    row.innerHTML = `
+      <td class="work-date">${timesheet.work_date}</td>
+      <td>${timesheet.time_total}</td>
+      <td>${timesheet.time_accrued}</td>
+      <td>${timesheet.time_til}</td>
+      <td>${timesheet.time_leave}</td>
+      <td>${timesheet.time_overtime}</td>
+      <td>${timesheet.holiday_name || ''} ${timesheet.comment}</td>
+      <td>
+        ${timesheet.id && timesheet.status !== 'approved' ? `
+        <a href="/deleteTimesheet/${timesheet.id}"><i class="fa fa-solid fa-trash delete-icon" aria-hidden="true"></i></a>
+        <a href="/timesheets/edit/${timesheet.id}?work_date=${timesheet.work_date.replace(/(\w+) (\d+), (\d+)/, function(match, month, day, year) { return `${year}-${(new Date(Date.parse(`${month} 1, ${year}`)).getMonth() + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`; })}"><i class="fa fa-solid fa-edit" aria-hidden="true"></i></a>
+        ` : 
+        ``} 
 
-          </td>
-        `;
-        row.addEventListener('click', () => {
-          console.log('Row clicked:', timesheet);
-          const selectedRows = document.querySelectorAll('.selected-row');
-          selectedRows.forEach(selectedRow => {
-            selectedRow.classList.remove('selected-row');
-          });
+        ${timesheet.id && timesheet.status == 'approved' ? `
+        <a href="/timesheets/${timesheet.id}"><i class="fa-solid fa-eye view-icon"
+                            aria-hidden="true"></i></a>
+        ` : 
+        ``} 
+      </td>
+    `;
 
-          const workDate = row.querySelector('td.work-date').textContent.trim();
-          console.log('work date: ', workDate);
-
-          if (lastClickedRow && lastClickedRow !== row) {
-            lastClickedRow.classList.remove('selected-row');
-          }
-
-          row.classList.toggle('selected-row');
-          lastClickedRow = row;
-
-          const addTimesheetBtn = document.getElementById('addTimesheetBtn');
-          const addEmergencyBtn = document.getElementById('addEmergencyBtn');
-          const addLeaveBtn = document.getElementById('addLeaveBtn');
-          const workDateInput = document.getElementById('workDateInput');
-
-          if (row.classList.contains('selected-row')) {
-            const adjustedDate = new Date(workDate);
-            adjustedDate.setDate(adjustedDate.getDate() + 1);
-            addTimesheetBtn.href = `/timesheetEntry?date=${adjustedDate.toISOString().split('T')[0]}`;
-            addEmergencyBtn.href = `/emergencyEntry?date=${adjustedDate.toISOString().split('T')[0]}`;
-            addLeaveBtn.href = `/plannedLeave?date=${adjustedDate.toISOString().split('T')[0]}`;
-            workDateInput.value = `${adjustedDate.toISOString().split('T')[0]}`;
-          } else {
-            addTimesheetBtn.href = '';
-            addEmergencyBtn.href = '';
-            addLeaveBtn.href = '';
-            workDateInput.value = '';
-          }
-        });
-        timesheetBody.appendChild(row);
+    row.addEventListener('click', () => {
+      console.log('Row clicked:', timesheet);
+      const selectedRows = document.querySelectorAll('.selected-row');
+      selectedRows.forEach(selectedRow => {
+        selectedRow.classList.remove('selected-row');
       });
-    };
-    monthSelect.addEventListener('change', (e) => {
+
+      const workDate = row.querySelector('td.work-date').textContent.trim();
+      console.log('work date: ', workDate);
+
+      if (lastClickedRow && lastClickedRow !== row) {
+        lastClickedRow.classList.remove('selected-row');
+      }
+
+      row.classList.toggle('selected-row');
+      lastClickedRow = row;
+
+      const addTimesheetBtn = document.getElementById('addTimesheetBtn');
+      const addEmergencyBtn = document.getElementById('addEmergencyBtn');
+      const addLeaveBtn = document.getElementById('addLeaveBtn');
+      const workDateInput = document.getElementById('workDateInput');
+
+      if (row.classList.contains('selected-row')) {
+        const adjustedDate = new Date(workDate);
+        adjustedDate.setDate(adjustedDate.getDate() + 1);
+        addTimesheetBtn.href = `/timesheetEntry?date=${adjustedDate.toISOString().split('T')[0]}`;
+        addEmergencyBtn.href = `/emergencyEntry?date=${adjustedDate.toISOString().split('T')[0]}`;
+        addLeaveBtn.href = `/plannedLeave?date=${adjustedDate.toISOString().split('T')[0]}`;
+        workDateInput.value = `${adjustedDate.toISOString().split('T')[0]}`;
+      } else {
+        addTimesheetBtn.href = '';
+        addEmergencyBtn.href = '';
+        addLeaveBtn.href = '';
+        workDateInput.value = '';
+      }
+    });
+
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const workDate = row.querySelector('td.work-date').textContent.trim();
+        const adjustedDate = new Date(workDate);
+        adjustedDate.setDate(adjustedDate.getDate() + 1);
+        window.location.href = `/timesheetEntry?date=${adjustedDate.toISOString().split('T')[0]}`;
+      }
+    });
+
+    row.addEventListener('dblclick', () => {
+      const workDate = row.querySelector('td.work-date').textContent.trim();
+      const adjustedDate = new Date(workDate);
+      adjustedDate.setDate(adjustedDate.getDate() + 1);
+      window.location.href = `/timesheetEntry?date=${adjustedDate.toISOString().split('T')[0]}`;
+    });
+
+    timesheetBody.appendChild(row);
+  });
+};
+    
+monthSelect.addEventListener('change', (e) => {
       filterTimesheetByMonth(e.target.value);
     });
 

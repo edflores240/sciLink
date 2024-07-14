@@ -136,13 +136,17 @@
                       <% if (timesheet.id) { %>
 
                         <td style="display: flex; flex-direction: row;">
-                          <form action="/timesheet/approveTs?page=rejected" method="post">
+                          <form action="/timesheet/pendingTs?page=rejected" method="post">
                             <input type="hidden" name="ts_id" value="<%= timesheet.id%>">
-                            <button class="approve-icon" type="submit"
-                              style="border: none; background-color: transparent;">
+                            <button class="approve-icon text-primary" type="submit"
+                              style="border: none; background-color: transparent; ">
                               <i class="fa-solid fa-check" aria-hidden="true"></i></button>
                           </form>
+                          <a href="/timesheets/<%= timesheet.id%>"><i class="fa-solid fa-eye view-icon"
+                            aria-hidden="true"></i></a>
+                   
                         </td>
+
 
                         <td>
                           <input type="checkbox" name="mark" value="<%= timesheet.id %>" class="mark-checkbox">
@@ -206,7 +210,7 @@
             console.log(markedIds)
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = '/timesheet/multipleApproveTs?page=rejected';
+            form.action = '/timesheet/multiplePendingTs?page=rejected';
             const input = document.createElement('input');
             input.type = 'hidden';
             input.name = 'ids';

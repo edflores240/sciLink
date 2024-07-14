@@ -18,26 +18,31 @@ FROM
 
 const getAllActivities = (req, res) => {
   console.log("aga1");
-  const query = "SELECT * FROM activities";
+  const org_id = req.params.orgId;
 
-  queryDatabase(query, [], res, "Activity fetched Successfully");
+  
+  const query = "SELECT * FROM activities WHERE org_id = $1";
+
+  queryDatabase(query, [org_id], res, "Activity fetched Successfully");
 };
 
 const createActivity = (req, res) => {
   console.log("ca1");
-  const { name, programs, percentages, status, user_id } = req.body;
+  const { name, programs, percentages, status, user_id, org_id } = req.body;
 console.log("createActivity: " + programs)
 
 const thePrograms = `{${programs}}`
-  const query = `INSERT INTO activities (name, programs, percentages, status, user_id) VALUES ($1, $2, $3, $4, $5)`;
+  const query = `INSERT INTO activities (name, programs, percentages, status, user_id, org_id ) VALUES ($1, $2, $3, $4, $5 ,$6)`;
 
   queryDatabase(
     query,
-    [name, `{${programs}}`, `{${percentages}}`, status, user_id],
+    [name, `{${programs}}`, `{${percentages}}`, status, user_id, org_id],
     res,
     "Activity created successfully"
   );
 };
+
+
 
 const updateActivity = (req, res) => {
   console.log("ua1");

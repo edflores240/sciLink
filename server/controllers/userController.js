@@ -27,6 +27,7 @@ console.log("inf9");
 
 
 
+
 //STATUS if ts_user_t.role_id = 1 then it is NORMAL USER
 //STATUS if ts_user_t.role_id = 2 then it is MANAGER USER
 
@@ -93,6 +94,7 @@ const checkUserExist = async (req, res) => {
     }
 
 }
+
 
 // PROFILE PART
 const editProfile = async (req, res) => { 
@@ -163,9 +165,6 @@ const editProfile = async (req, res) => {
         console.log("error in updateing or insterting the manager: ", err);
       }
     });
-  
-
-    
 
     try {
         await pool.query(`
@@ -183,6 +182,9 @@ const editProfile = async (req, res) => {
 
 const getManager = async (req,res) => { 
 // console.log("AKSJDHASJKDHASJKLDHASJKLDHAKLSJDHAKLSJHDKLAJSDHASKLJDH")
+const orgID = req.params.orgID;
+
+console.log("orgID: ", orgID)
 	const query = `SELECT
 	users."id", 
 	users.username, 
@@ -197,10 +199,10 @@ FROM
 	ON 
 		personelle.person_id = users."id"
 		
-	WHERE position = 'manager'`
+	WHERE position = 'manager' AND org_id = $1`
 
 	try {
-		const result = await pool.query(query, []);
+		const result = await pool.query(query, [orgID]);
 		res.status(200).json(result.rows);
 	} catch (error) {
 		console.error('Error fetching manager:', error);
@@ -353,6 +355,87 @@ const assignManager =  async (req, res) => {
 	 
   }
 
+  const checkMyManagement = (req, res) => { 
+    const {tsId, managerId} = req.body
+
+    const query = `
+    SELECT
+	ts_timesheet_t.id
+FROM
+	ts_timesheet_t
+	INNER JOIN
+	staff_hierarchy
+	ON 
+		ts_timesheet_t.person_id = staff_hierarchy.user_id
+	WHERE 
+	
+	ts_timesheet_t.id = $1 AND manager_id = $2
+    `
+
+    pool.query(query, [tsId, managerId], (err, result) => {
+
+      if(err) {
+        console.log("Checking management Error:", err)
+        return res.status(500).json(err)
+      } else { 
+        return res.status(200).json(result.rows)
+      }
+
+    })
+    
+  }
+
+  
+  const addPersonelleInfo = (req , res) => { 
+    const userId = req.params.userID;
+    const query =   `INSERT INTO personelle (person_id, position) VALUES ($1 , 'user')`
+
+    pool.query(query, [userId], (err, result) => {
+      if(err) {
+        console.log("Adding personelle info Error:", err)
+        return res.status(500).json(err)
+      } else { 
+        return res.status(200).json()
+      } 
+    })
+  }
+
+
+  const addOrganizationToPersonelle = (req, res) => {
+
+    const {person_id, position, org_id} = req.body
+  
+  pool.query(`INSERT INTO personelle (person_id , position, org_id) VALUES ($1, $2, $3)`, [person_id , position, org_id], (err, result)=> {
+    if(!err){
+      console.log("uc1" , result);
+      
+    }
+   })
+  }
+
+
+
+  // ADMIN FUNCTIONS 
+
+  const adminEditUser = (req, res) => {
+
+    const { email, username, password, userId, role} = req.body;
+
+    console.log("req.body.email:", email);
+    console.log("req.body.username:", username);
+    console.log("req.body.password:", password);
+    console.log("req.body.userIdm:", userId);
+
+
+    if (!email ||!username || !role ) {
+        return res.status(400).json({ error: 'Important fields must be filled out.' });
+    }
+
+
+
+
+  }
+  
 
 
 export {
@@ -365,5 +448,8 @@ export {
   getManager, 
   assignManager, 
   checkMyManger, 
-
+  checkMyManagement,
+  addPersonelleInfo, 
+  addOrganizationToPersonelle,
+  adminEditUser
 };
