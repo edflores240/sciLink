@@ -25,6 +25,7 @@ import createManagerRoutes from "./routes/managerRoutes.js";
 import { userInfo } from "os";
 import createProfileRoutes from "./routes/profileRoutes.js";
 import createNotificaitonRoute from "./routes/notificationRoutes.js";
+import handleError from "./utils/handleError.js";
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 const app = express();
@@ -131,6 +132,7 @@ const runManager = (req, res, next) => {
 
   const allowedRoutes = [
     "/notification",
+    "/notification/delete/:id",
     "/notification/fetch",
     "/notification/unseen",
     "/notification/markAsSeen",
@@ -146,7 +148,7 @@ const runManager = (req, res, next) => {
     "/timesheet/rejectTs",
     "/timesheet/pendingTs",
     "/time",
-    "/profile",
+    "/profile", 
     "/profile/update",
     "/profile/check",
     "/emergencyEntry",
@@ -208,64 +210,61 @@ app.use("/fundSource", createFundSourceRoutes(isAuthenticated));
 //#region regular users
 
 app.get("/time", isAuthenticated, async (req, res) => {
-  // console.log(`t1    ${API_URL}/timesheets/${req.user.id}`);
+  try {
+    const result = await axios.get(`${API_URL}/timesheets/${req.user.id}`);
+    const publicHolidays = await axios.get(`${API_URL}/publicHolidays`);
+    const flexTilRdo = await axios.post(`${API_URL}/tfr/${req.user.id}`);
 
-  const result = await axios.get(`${API_URL}/timesheets/${req.user.id}`);
-  const publicHolidays = await axios.get(`${API_URL}/publicHolidays`);
-  const flexTilRdo = await axios.post(`${API_URL}/tfr/${req.user.id}`);
-  // console.log(flexTilRdo.data[0])
-  // console.log("t2    got " + result.data.length + " timesheets ");
+    const formatDate = (dateString) => {
+      const date = new Date(dateString);
+      const options = { day: "2-digit", month: "short", year: "numeric" };
+      return date.toLocaleDateString("en-US", options);
+    };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const options = { day: "2-digit", month: "short", year: "numeric" };
-    return date.toLocaleDateString("en-US", options);
-  };
+    const filteredData = result.data.map((entry) => ({
+      id: entry["id"],
+      work_date: formatDate(entry["work_date"]),
+      time_start: entry["time_start"],
+      time_finish: entry["time_finish"],
+      time_total: entry["time_total"],
+      time_accrued: entry["time_flexi"],
+      time_til: entry["time_til"],
+      time_leave: entry["time_leave"],
+      time_overtime: entry["time_overtime"],
+      time_comm_svs: entry["time_comm_svs"],
+      comment: entry["t_comment"],
+      location_id: entry["location_id"],
+      activity: entry["activity"],
+      notes: entry["notes"],
+      status: entry["status"],
+      holiday_name: publicHolidays.data.find(
+        (holiday) =>
+          entry["work_date"].slice(0, 10) === holiday.holiday_date.slice(0, 10)
+      )?.holiday_name,
+      is_weekend:
+        new Date(entry["work_date"]).getDay() === 0 ||
+        new Date(entry["work_date"]).getDay() === 6
+          ? "yes"
+          : null,
+    }));
 
-  // Filter the result.data array to include only the required fields
+    const queryMessage = req.query.m;
+    const userInfo = req.session.userInfo;
 
-  const filteredData = result.data.map((entry) => ({
-    id: entry["id"],
-    work_date: formatDate(entry["work_date"]),
-    time_start: entry["time_start"],
-    time_finish: entry["time_finish"],
-    time_total: entry["time_total"],
-    time_accrued: entry["time_flexi"],
-    time_til: entry["time_til"],
-    time_leave: entry["time_leave"],
-    time_overtime: entry["time_overtime"],
-    time_comm_svs: entry["time_comm_svs"],
-    comment: entry["t_comment"],
-    location_id: entry["location_id"],
-    activity: entry["activity"],
-    notes: entry["notes"],
-    status: entry["status"],
-    holiday_name: publicHolidays.data.find(
-      (holiday) =>
-        entry["work_date"].slice(0, 10) === holiday.holiday_date.slice(0, 10)
-    )?.holiday_name,
-    is_weekend:
-      new Date(entry["work_date"]).getDay() === 0 ||
-      new Date(entry["work_date"]).getDay() === 6
-        ? "yes"
-        : null,
-  }));
-
-  const queryMessage = req.query.m;
-  // console.log("aldk;aslk", queryMessage);
-
-  const userInfo = req.session.userInfo;
-
-  res.render("timesheet/main.ejs", {
-    title: "Timesheet",
-    user: req.user,
-    userInfo: userInfo,
-    queryMessage: queryMessage,
-    flexTilRdo: flexTilRdo.data[0],
-    tableData: filteredData,
-    messages: req.flash("messages"),
-  });
-  console.log("t9  returned users timesheets ");
+    res.render("timesheet/main.ejs", {
+      title: "Timesheet",
+      user: req.user,
+      userInfo: userInfo,
+      queryMessage: queryMessage,
+      flexTilRdo: flexTilRdo.data[0],
+      tableData: filteredData,
+      messages: req.flash("messages"),
+    });
+    console.log("t9  returned users timesheets ");
+  } catch (error) {
+    handleError(error, req, res);
+    res.redirect("/time");
+  }
 });
 
 app.get("/timesheetEntry", isAuthenticated, async (req, res) => {
@@ -280,31 +279,27 @@ app.get("/timesheetEntry", isAuthenticated, async (req, res) => {
   }
 
   try {
-    const myManager = await axios.get(`${API_URL}/users/checkMyManger/${userId}`)
+    const myManager = await axios.get(`${API_URL}/users/checkMyManger/${userId}`);
 
-   if(myManager.data.length == 0) { 
-    return res.redirect("/profile?status=noManager") // Use return to stop further execution
-   }
+    if (myManager.data.length == 0) {
+      return res.redirect("/profile?status=noManager"); // Use return to stop further execution
+    }
 
     const locationResponse = await axios.get(`${API_URL}/location`);
     const userScheduleResponse = await axios.get(`${API_URL}/userSchedule/${req.user.id}`);
     let userSchedules = [];
     let allDateSchedules = [];
 
-    console.log("the user schedule", userScheduleResponse.data)
+    console.log("the user schedule", userScheduleResponse.data);
 
-    if (!userScheduleResponse.data.length < 1 ) {
+    if (!userScheduleResponse.data.length < 1) {
       const scheduleDays = userScheduleResponse.data[0].schedule_day;
       const paidHours = userScheduleResponse.data[0].paid_hours;
       const startDate = new Date(userScheduleResponse.data[0].start_date);
       const endDate = new Date(userScheduleResponse.data[0].end_date);
 
-    
-
       userSchedules = getPayPeriods(startDate, endDate, scheduleDays, paidHours);
       console.log("user schedules: ", userSchedules);
-
-
     }
 
     function getDayOfWeekName(dayOfWeek) {
@@ -313,26 +308,11 @@ app.get("/timesheetEntry", isAuthenticated, async (req, res) => {
     }
 
     function getPayPeriods(startDate, endDate, scheduleDays, paidHours) {
-      
-
       let currentDate = new Date(startDate);
       let i = 0;
       let paidHour = 0;
       while (currentDate <= endDate) {
         const dayOfWeek = currentDate.getDay();
-
-        // if (getDayOfWeekName(dayOfWeek) == "Sunday" || getDayOfWeekName(dayOfWeek) == "Saturday") { 
-
-        //   if (i <= paidHours.length - 1) {
-        //     paidHour = paidHours[i] == 0 ? 7.6 : paidHours[i];
-        //     if (i == paidHours.length - 1) {
-        //       i = 0;
-        //     } else {
-        //       i += 1;
-        //     }
-        //   }
-          
-        // } else if
 
         if (scheduleDays.includes(getDayOfWeekName(dayOfWeek))) {
           if (i <= paidHours.length - 1) {
@@ -355,7 +335,6 @@ app.get("/timesheetEntry", isAuthenticated, async (req, res) => {
               disable_til: userScheduleResponse.data[0].disable_til,
               disable_flexi: userScheduleResponse.data[0].disable_flexi,
               disable_rdo: userScheduleResponse.data[0].disable_rdo
-            
             });
           }
         }
@@ -366,7 +345,6 @@ app.get("/timesheetEntry", isAuthenticated, async (req, res) => {
     }
 
     const location = locationResponse.data;
-
     const selectedDate = req.query.date;
 
     const timesheetExists = await axios.post(
@@ -374,8 +352,7 @@ app.get("/timesheetEntry", isAuthenticated, async (req, res) => {
       { date: selectedDate, userID: userId }
     );
 
-   const recentLocation = await axios.get(`${API_URL}/location/getRecentLocation/${req.user.id}`);
-
+    const recentLocation = await axios.get(`${API_URL}/location/getRecentLocation/${req.user.id}`);
 
     if (timesheetExists.data.timesheetExists) {
       res.redirect("/time?m=dateAlreadyExist");
@@ -396,8 +373,8 @@ app.get("/timesheetEntry", isAuthenticated, async (req, res) => {
       }
     }
   } catch (error) {
-    console.error("Error in timesheetEntry route:", error);
-    res.status(500).send("Internal Server Error");
+    handleError(error, req, res);
+    // res.status(500).send("Internal Server Error");
   }
 });
 
@@ -476,17 +453,17 @@ app.post(
     // body('til_taken').optional().isNumeric().withMessage('Invalid numeric format for til_taken')
   ],
   async (req, res) => {
-    console.log("n10 ", req.body);
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      req.flash(
-        "messages",
-        errors.array().map((error) => error.msg)
-      );
-      return res.redirect("/time");
-    }
-
     try {
+      console.log("n10 ", req.body);
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        req.flash(
+          "messages",
+          errors.array().map((error) => error.msg)
+        );
+        return res.redirect("/time");
+      }
+
       const {
         work_date,
         time_start,
@@ -622,7 +599,7 @@ app.post(
       req.flash("messages", "Thank you for entering your timesheet");
       return res.redirect("/time");
     } catch (error) {
-      console.error("n80     Error creating timesheet:", error);
+      handleError(error, req, res);
       req.flash(
         "messages",
         "An error occurred while creating the timesheet - the timesheet was not saved"
@@ -633,48 +610,52 @@ app.post(
 );
 
 app.get("/emergencyEntry", isAuthenticated, async (req, res) => {
-  console.log(`yg1   `);
-
-  const selectedDate = req.query.date;
-
-  let formData = {}; // Declare formData before assigning values to it
-
   try {
-    const result = await axios.get(`${API_URL}/rdo/${req.user.id}`);
-    console.log("yg2    user RDO ", result.data);
+    console.log(`yg1   `);
 
-    formData = {
-      RDO: result.data[0].is_eligible,
-    };
+    const selectedDate = req.query.date;
+
+    let formData = {}; // Declare formData before assigning values to it
+
+    try {
+      const result = await axios.get(`${API_URL}/rdo/${req.user.id}`);
+      console.log("yg2    user RDO ", result.data);
+
+      formData = {
+        RDO: result.data[0].is_eligible,
+      };
+    } catch (error) {
+      console.error("Error fetching RDO:", error);
+      handleError(error, req, res); // Handle error using the handleError function
+      formData = {
+        RDO: null, // Set RDO to some default value or handle error case appropriately
+      };
+    }
+
+    const date = req.query.date; // Pick up the date from the URL parameter
+
+    if (!date) {
+      res.redirect("/time?m=dateAlreadyExist");
+    }
+
+    const timesheetExists = await axios.post(
+      `${API_URL}/timesheets/checkTimeSheetsExist`,
+      { date: selectedDate, userID: req.user.id }
+    );
+
+    if (timesheetExists.data.timesheetExists) {
+      res.redirect("/time?m=dateAlreadyExist");
+    } else {
+      res.render("timesheet/emergencyResponse.ejs", {
+        formData,
+        selectedDate: selectedDate,
+        user: req.user,
+        title: "Enter Timesheet",
+        messages: req.flash("messages"),
+      });
+    }
   } catch (error) {
-    console.error("Error fetching RDO:", error);
-    // Handle error appropriately, e.g., set formData.RDO to some default value
-    formData = {
-      RDO: null, // Set RDO to some default value or handle error case appropriately
-    };
-  }
-
-  const date = req.query.date; // Pick up the date from the URL parameter
-
-  if (!date) {
-    res.redirect("/time?m=dateAlreadyExist");
-  }
-
-  const timesheetExists = await axios.post(
-    `${API_URL}/timesheets/checkTimeSheetsExist`,
-    { date: selectedDate, userID: req.user.id }
-  );
-
-  if (timesheetExists.data.timesheetExists) {
-    res.redirect("/time?m=dateAlreadyExist");
-  } else {
-    res.render("timesheet/emergencyResponse.ejs", {
-      formData,
-      selectedDate: selectedDate,
-      user: req.user,
-      title: "Enter Timesheet",
-      messages: req.flash("messages"),
-    });
+    handleError(error, req, res); // Handle any uncaught errors using the handleError function
   }
 });
 
@@ -786,51 +767,55 @@ app.post(
 );
 
 app.get("/plannedLeave", isAuthenticated, async (req, res) => {
-  const selectedDate = req.query.date;
+  try {
+    const selectedDate = req.query.date;
 
-  const result = await axios.get(`${API_URL}/timesheets/${req.user.id}`);
+    const result = await axios.get(`${API_URL}/timesheets/${req.user.id}`);
 
-  const publicHolidays = await axios.get(`${API_URL}/publicHolidays`);
+    const publicHolidays = await axios.get(`${API_URL}/publicHolidays`);
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const options = { day: "2-digit", month: "short", year: "numeric" };
-    return date.toLocaleDateString("en-US", options);
-  };
+    const formatDate = (dateString) => {
+      const date = new Date(dateString);
+      const options = { day: "2-digit", month: "short", year: "numeric" };
+      return date.toLocaleDateString("en-US", options);
+    };
 
-  // Filter the result.data array to exclude entries where id === null
-  const filteredData = result.data
-    .filter((entry) => entry["id"] !== null)
-    .map((entry) => ({
-      work_date: formatDate(entry["work_date"]),
-      id: entry["id"],
-    }));
+    // Filter the result.data array to exclude entries where id === null
+    const filteredData = result.data
+      .filter((entry) => entry["id"] !== null)
+      .map((entry) => ({
+        work_date: formatDate(entry["work_date"]),
+        id: entry["id"],
+      }));
 
-  // console.log(publicHolidays.data)
+    // console.log(publicHolidays.data)
 
-  const date = req.query.date; // Pick up the date from the URL parameter
+    const date = req.query.date; // Pick up the date from the URL parameter
 
-  if (!date) {
-    res.redirect("/time?m=dateAlreadyExist");
-  }
+    if (!date) {
+      res.redirect("/time?m=dateAlreadyExist");
+    }
 
-  const timesheetExists = await axios.post(
-    `${API_URL}/timesheets/checkTimeSheetsExist`,
-    { date: selectedDate, userID: req.user.id }
-  );
+    const timesheetExists = await axios.post(
+      `${API_URL}/timesheets/checkTimeSheetsExist`,
+      { date: selectedDate, userID: req.user.id }
+    );
 
-  if (timesheetExists.data.timesheetExists) {
-    res.redirect("/time?m=dateAlreadyExist");
-  } else {
-    // Render the leavePlanned.ejs file
-    res.render("timesheet/leavePlanned.ejs", {
-      workDays: filteredData,
-      selectedDate: selectedDate,
-      publicHolidays: publicHolidays.data,
-      title: "Leave Request",
-      user: req.user,
-      messages: req.flash("messages"),
-    });
+    if (timesheetExists.data.timesheetExists) {
+      res.redirect("/time?m=dateAlreadyExist");
+    } else {
+      // Render the leavePlanned.ejs file
+      res.render("timesheet/leavePlanned.ejs", {
+        workDays: filteredData,
+        selectedDate: selectedDate,
+        publicHolidays: publicHolidays.data,
+        title: "Leave Request",
+        user: req.user,
+        messages: req.flash("messages"),
+      });
+    }
+  } catch (error) {
+    handleError(error, req, res);
   }
 });
 
@@ -951,6 +936,7 @@ app.get("/deleteTimesheet/:id", async (req, res) => {
       "de8  Error deleting timesheet:",
       error.response ? error.response.data : error.message
     );
+    handleError(error, req, res)
   }
 });
 
@@ -958,6 +944,7 @@ app.get("/approveTimesheet/:id", async (req, res) => {
   console.log("ap1  ", req.body);
   const timesheetId = req.params.id;
   const newStatus = "approved";
+
   try {
     //const scrollY = req.query.scrollY || 0; // Store the current scroll position
 
@@ -976,6 +963,7 @@ app.get("/approveTimesheet/:id", async (req, res) => {
       "ap8      Error updating timesheet:",
       error.response ? error.response.data : error.message
     );
+    handleError(error, req, res)
   }
 });
 
@@ -987,39 +975,36 @@ app.get("/approveTimesheet/:id", async (req, res) => {
 //#region admin
 
 app.get("/users", isAdmin, async (req, res) => {
-  console.log("u1    Admin route: Rendering settings page...");
-  
-
-  const data = await axios.get(`${API_URL}/users/userInfo/${req.user.id}`);
+  try {
+    console.log("u1    Admin route: Rendering settings page...");
+    
+    const data = await axios.get(`${API_URL}/users/userInfo/${req.user.id}`);
 
     if(data.data[0] == undefined ) {
         return res.redirect('/profile?status=noOrganization');
     }
 
-    
     if(data.data[0].org_id == undefined || data.data[0].org_id == null ) {
        return res.redirect('/profile?status=noOrganization');
     }
 
+    const result = await axios.get(`${API_URL}/usersByOrg/${data.data[0].org_id}`);
+    console.log("u2    ", result.data);
 
-  const result = await axios.get(`${API_URL}/usersByOrg/${data.data[0].org_id}`);
-  console.log("u2    ", result.data);
+    res.render("settings.ejs", {
+      user: req.user,
+      userInfo: data.data[0],
+      users: result.data,
+      title: "Users",
+      messages: req.flash("messages"),
+    });
 
-// req.user = req.session.userInfo
-//   console.log("A:LDJKASLKDJAS:LKD JAS:LKD JASDMK ASD:KL AS ", req.user)
-
-  
-  res.render("settings.ejs", {
-    user: req.user,
-    userInfo: data.data[0],
-    users: result.data,
-    title: "Users",
-    messages: req.flash("messages"),
-  });
-
-  console.log("u9  all users displayed on screen ");
+    console.log("u9  all users displayed on screen ");
+  } catch (error) {
+    console.error("Error in /users route:", error);
+    handleError(error, req, res);
+  }
 });
-
 
 app.get("/users/:id", isAuthenticated, async (req, res) => {
   console.log("v1      Protected route: Fetching user data...", req.params);
@@ -1043,8 +1028,10 @@ app.get("/users/:id", isAuthenticated, async (req, res) => {
     console.log("v4 ");
   } catch (error) {
     console.error("Error fetching user data:", error);
-    res.status(500).send("Error fetching user data");
+    
     console.log("v7 ");
+
+    handleError(error, req, res)
   }
   // } else {
   //     res.redirect("/login");
@@ -1135,7 +1122,8 @@ app.post(
       return res.redirect("/users");
     } catch (error) {
       console.error("pau8    Error adding user:", error);
-      res.status(500).send("Error adding user");
+      // res.status(500).send("Error adding user");
+      handleError(error, req, res)
     }
   }
 );
@@ -1179,7 +1167,8 @@ app.post("/editUser", isAdmin, async (req, res) => {
     res.redirect("/users");
   } catch (error) {
     console.error("Error updating user information:", error);
-    res.status(500).send("Internal server error");
+    // res.status(500).send("Internal server error");
+    handleError(error, req, res)
   }
 });
 //#endregion
@@ -1190,113 +1179,141 @@ app.post("/editUser", isAdmin, async (req, res) => {
 //#region Authorisation
 
 
-app.get("/login", (req, res) => {
-  console.log("li1     get login route");
-  // const errors = req.flash('messages');
-  // console.log("li2     messages : ", errors);
-  // res.render('login.ejs', { user: req.user, title: 'numbat', body: '', messages: errors });
-  console.log("li3     ");
-  const defaultEmail = process.env.DEFAULT_USER || "";
-  console.log("li4     ");
-  res.render("login.ejs", {
-    defaultEmail,
-    user: req.user,
-    title: "numbat",
-    body: "",
-    query: req.query,
-    messages: req.flash("messages"),
-  });
-  console.log("li9   ");
+app.get("/login", async (req, res) => {
+  try {
+    console.log("li1     get login route");
+    // const errors = req.flash('messages');
+    // console.log("li2     messages : ", errors);
+    // res.render('login.ejs', { user: req.user, title: 'numbat', body: '', messages: errors });
+    console.log("li3     ");
+    const defaultEmail = process.env.DEFAULT_USER || "";
+    console.log("li4     ");
+    res.render("login.ejs", {
+      defaultEmail,
+      user: req.user,
+      title: "numbat",
+      body: "",
+      query: req.query,
+      messages: req.flash("messages"),
+    });
+    console.log("li9   ");
+  } catch (error) {
+    handleError(error, req, res);
+  }
 });
 
 
-app.post("/login", function (req, res, next) {
-  console.log("lg1   ", req.body);
+app.post("/login", async function (req, res, next) {
+  try {
+    console.log("lg1   ", req.body);
 
-  passport.authenticate("local", async function (err, user, info) {
-    if (err) {
-      console.log("lg12   ", err);
-      return next(err);
-    }
-    if (!user) {
-      console.log("lg13   ", info);
-
-      if (info && info.messages[0] === "Incorrect password.") {
-        req.flash(
-          "messages",
-          "Invalid username or password. Please try again."
-        );
-      } else {
-        req.flash(
-          "messages",
-          "Email has not been verified. Please check your email for the verification link."
-        );
-      }
-      return res.redirect("/login");
-    }
-
-    req.logIn(user, async function (err) {
-      if (err) {
-        console.log("lg20   ", err);
-        return next(err);
-      }
-
-      console.log("lg3   ", err);
+    passport.authenticate("local", async function (err, user, info) {
       try {
-        const isManager = await axios.get(
-          `${API_URL}/users/userInfo/${req.user.id}`
-        );
-        console.log("lg31   ", isManager.data[0]);
+        if (err) {
+          console.log("lg12   ", err);
+          throw err;
+        }
+        if (!user) {
+          console.log("lg13   ", info);
 
-        req.session.userInfo = isManager.data[0];
-        
-        if (req.session.userInfo === undefined) {
-          await axios.put(`${API_URL}/users/addPersonelleInfo/${req.user.id}`);
+          if (info && info.messages[0] === "Incorrect password.") {
+            req.flash(
+              "messages",
+              "Invalid username or password. Please try again."
+            );
+          } else {
+            req.flash(
+              "messages",
+              "Email has not been verified. Please check your email for the verification link."
+            );
+          }
+          return res.redirect("/login");
         }
 
-        if (
-          req.session.userInfo &&
-          req.session.userInfo.position === "manager"
-        ) {
-          console.log("lg40   ", err);
-          return res.redirect("/timesheet/pending");
-        }
-        console.log("lg9   ", err);
-        return res.redirect("/time");
+        req.logIn(user, async function (err) {
+          try {
+            if (err) {
+              console.log("lg20   ", err);
+              throw err;
+            }
+
+            console.log("lg3   ", err);
+            try {
+              const isManager = await axios.get(
+                `${API_URL}/users/userInfo/${req.user.id}`
+              );
+              console.log("lg31   ", isManager.data[0]);
+
+              req.session.userInfo = isManager.data[0];
+              
+              if (req.session.userInfo === undefined) {
+                await axios.put(`${API_URL}/users/addPersonelleInfo/${req.user.id}`);
+              }
+
+              if (
+                req.session.userInfo &&
+                req.session.userInfo.position === "manager"
+              ) {
+                console.log("lg40   ", err);
+                return res.redirect("/timesheet/pending");
+              }
+              console.log("lg9   ", err);
+              return res.redirect("/time");
+            } catch (error) {
+              console.log("lg32   ", error);
+              throw error;
+            }
+          } catch (error) {
+            console.error("Error logging in user:", error);
+            handleError(error, req, res);
+          }
+        });
       } catch (error) {
-        console.log("lg32   ", error);
-        return next(error);
+        console.error("Error authenticating user:", error);
+        handleError(error, req, res);
       }
-    });
-  })(req, res, next);
+    })(req, res, next);
+  } catch (error) {
+    console.error("Error in login route:", error);
+    handleError(error, req, res);
+  }
 });
-
 app.get("/logout", (req, res) => {
-  console.log("lo1    user is logging out");
-  
-  req.logout((err) => {
-    if (err) {
-      console.error("Logout error:", err);
-      return res.redirect("/login"); // Or handle the error appropriately
-    }
-    req.session.destroy((err) => {
+  try {
+    console.log("lo1    user is logging out");
+    
+    req.logout((err) => {
       if (err) {
-        console.error("Session destruction error:", err);
+        console.error("Logout error:", err);
+        return res.redirect("/login"); // Or handle the error appropriately
       }
-      res.clearCookie('connect.sid'); // 'connect.sid' is the default cookie name for express-session
-      res.redirect("/login");
+      req.session.destroy((err) => {
+        if (err) {
+          console.error("Session destruction error:", err);
+        }
+        res.clearCookie('connect.sid'); // 'connect.sid' is the default cookie name for express-session
+        res.redirect("/login");
+      });
     });
-  });
+  } catch (error) {
+    console.error("Error logging out user:", error);
+    handleError(error, req, res);
+  }
 });
 
 
 app.get("/register", (req, res) => {
-  console.log("r1");
-  res.render("register.ejs", {
-    title: "Register",
-    user: req.user,
-    messages: req.flash("messages"),
-  });
+  try {
+    console.log("r1");
+    res.render("register.ejs", {
+      title: "Register",
+      user: req.user,
+      messages: req.flash("messages"),
+    });
+  } catch (error) {
+    console.error("Error rendering register page:", error);
+    handleError(error, req, res);
+  }
 });
 
 const registerUser = async (userData, orgID) => {
@@ -1373,16 +1390,18 @@ const registerUser = async (userData, orgID) => {
 
     return userID;
   } catch (error) {
-    if (error.response && error.response.status === 400) {
-      // Email already registered
-      console.log("ru7 Error: ", error.response);
-      throw new Error("Email already registered");
-    } else if (error.response && error.response.status === 500) {
-      console.log("ru8 ");
-    } else {
-      console.log("ru9 ");
-      throw error; // Other errors
-    }
+    // if (error.response && error.response.status === 400) {
+    //   // Email already registered
+    //   console.log("ru7 Error: ", error.response);
+    //   throw new Error("Email already registered");
+    // } else if (error.response && error.response.status === 500) {
+    //   console.log("ru8 ");
+    // } else {
+    //   console.log("ru9 ");
+    //   throw error; // Other errors
+    // }
+
+    handleError(error, req, res)
   }
 };
 
@@ -1410,9 +1429,11 @@ app.post("/register", async (req, res) => {
         title: "Register",
       });
     } else {
-      console.log("gp7 db error");
-      console.error("Error during registration:", error);
-      return res.status(500).send("Error registering user");
+      // console.log("gp7 db error");
+      // console.error("Error during registration:", error);
+      // return res.status(500).send("Error registering user");
+
+      handleError(error, req, res);
     }
   }
 });

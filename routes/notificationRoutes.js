@@ -54,6 +54,8 @@ const createNotificationRoute = (isAuthenticated) => {
 
   router.get("/delete/:id", isAuthenticated, async (req, res) => {
     try {
+
+      console.log("gwapo ko nga bata")
       await axiosInstance.get(
         `${API_URL}/notification/delete/${req.params.id}`
       );
